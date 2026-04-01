@@ -15,16 +15,14 @@
       The 2D rendering context — drawing images, managing state with a stack, and clipping regions.
     </p>
 
-    <div class="demo-layout">
-      <!-- ── LEFT: interactive area ── -->
-      <div>
-
-        <!-- STEP 1: drawImage -->
-        <div class="step" id="step1">
-          <div class="step-header">
-            <div class="step-number">1</div>
-            <h3>drawImage</h3>
-          </div>
+    <!-- STEP 1: drawImage -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <h3>drawImage</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             <code class="text-mono">ctx.drawImage()</code> accepts an
             <code class="text-mono">HTMLImageElement</code>,
@@ -37,13 +35,33 @@
             <button class="btn" onclick="clearCanvas('c1')">Clear</button>
           </div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>drawImage</span><span>JS</span></div>
+          <pre><code><span class="cm">// drawImage(source, x, y, w, h)</span>
+<span class="kw">const</span> ctx = canvas.getContext(<span class="str">'2d'</span>);
 
-        <!-- STEP 2: save / restore + transforms -->
-        <div class="step" id="step2">
-          <div class="step-header">
-            <div class="step-number">2</div>
-            <h3>save / restore — the state stack</h3>
-          </div>
+<span class="kw">const</span> img = <span class="kw">new</span> <span class="fn">Image</span>();
+img.src = <span class="str">'...'</span>;
+img.<span class="fn">onload</span> = () => {
+  ctx.<span class="fn">drawImage</span>(img, <span class="num">50</span>, <span class="num">25</span>, <span class="num">300</span>, <span class="num">200</span>);
+};
+
+<span class="cm">// Also accepts:</span>
+<span class="cm">// HTMLCanvasElement</span>
+<span class="cm">// HTMLVideoElement ← see MediaStream demo</span>
+<span class="cm">// ImageBitmap, OffscreenCanvas</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: save / restore + transforms -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <h3>save / restore — the state stack</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             <code class="text-mono">ctx.save()</code> pushes the current state (transforms, styles, clip) onto a stack.
             <code class="text-mono">ctx.restore()</code> pops it. Transforms applied inside a save/restore block don't leak out.
@@ -59,13 +77,35 @@
             <button class="btn" onclick="clearCanvas('c2'); stackDepth=0; updateDepth()">Clear</button>
           </div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>save / restore</span><span>JS</span></div>
+          <pre><code><span class="cm">// save() pushes current state:</span>
+<span class="cm">//  - transform matrix</span>
+<span class="cm">//  - clipping region</span>
+<span class="cm">//  - strokeStyle, fillStyle...</span>
+ctx.<span class="fn">save</span>();        <span class="cm">// depth: 1</span>
 
-        <!-- STEP 3: clip -->
-        <div class="step" id="step3">
-          <div class="step-header">
-            <div class="step-number">3</div>
-            <h3>clip — masking with a path</h3>
-          </div>
+ctx.<span class="fn">translate</span>(<span class="num">100</span>, <span class="num">50</span>);
+ctx.<span class="fn">rotate</span>(Math.PI / <span class="num">6</span>);
+ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">80</span>, <span class="num">40</span>);
+
+ctx.<span class="fn">restore</span>();      <span class="cm">// depth: 0</span>
+
+<span class="cm">// Back to original origin —</span>
+<span class="cm">// translate + rotate are gone</span>
+ctx.<span class="fn">fillRect</span>(<span class="num">200</span>, <span class="num">100</span>, <span class="num">80</span>, <span class="num">40</span>);</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: clip -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <h3>clip — masking with a path</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             After calling <code class="text-mono">ctx.clip()</code>, all subsequent drawing is masked to the current path.
             Wrap in <code class="text-mono">save()</code> / <code class="text-mono">restore()</code> to remove the clip.
@@ -75,161 +115,97 @@
             <button class="btn" onclick="demo3ShowPath()">1. Show clip path</button>
             <button class="btn btn-primary" onclick="demo3Clip()">2. Apply clip()</button>
             <button class="btn" onclick="demo3DrawInside()">3. Draw inside clip</button>
-            <button class="btn btn-danger" onclick="demo3Restore()">4. restore() — remove clip</button>
+            <button class="btn btn-danger" onclick="demo3Restore()">4. restore()</button>
             <button class="btn" onclick="clearCanvas('c3'); clipSaved=false">Clear</button>
           </div>
         </div>
-
-        <!-- STEP 4: combined animated demo -->
-        <div class="step" id="step4">
-          <div class="step-header">
-            <div class="step-number">4</div>
-            <h3>Combined — animated drawImage + clip + save/restore</h3>
-          </div>
-          <p class="step-desc">
-            Putting it all together: an image drawn each frame, clipped to a circle, rotating
-            inside a <code class="text-mono">save()</code>/<code class="text-mono">restore()</code> block.
-          </p>
-          <canvas id="c4" width="400" height="300"></canvas>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btn4" onclick="demo4Toggle()">Start animation</button>
-          </div>
-        </div>
-
-        <!-- Connection callout -->
-        <div class="connection-banner">
-          <span class="connection-badge">Connected to MediaStream</span>
-          <span>
-            This canvas can become a live video stream via
-            <code class="text-mono">canvas.captureStream(30)</code> —
-            see the <a href="mediastream.html">MediaStream demo →</a>
-          </span>
-        </div>
-
-      </div>
-
-      <!-- ── RIGHT: code panel ── -->
-      <div>
         <div class="code-panel">
-          <div class="code-panel-header">
-            <span id="code-label">canvas.html</span>
-            <span>JS</span>
-          </div>
-
-          <!-- Code for step 1 -->
-          <pre id="code1" class="active"><code><span class="cm">// Step 1 — drawImage</span>
-<span class="kw">const</span> canvas = document.getElementById(<span class="str">'c1'</span>);
-<span class="kw">const</span> ctx = canvas.getContext(<span class="str">'2d'</span>);
-
-<span class="kw">const</span> img = <span class="kw">new</span> <span class="fn">Image</span>();
-img.src = <span class="str">'data:image/svg+xml,...'</span>;
-
-img.<span class="fn">onload</span> = () => {
-  <span class="cm">// Draw at (x, y) with width, height</span>
-  ctx.<span class="fn">drawImage</span>(img, <span class="num">50</span>, <span class="num">25</span>, <span class="num">300</span>, <span class="num">200</span>);
-};
-
-<span class="cm">// drawImage also accepts:</span>
-<span class="cm">// - HTMLCanvasElement  (draw one canvas into another)</span>
-<span class="cm">// - HTMLVideoElement   (draw a video frame — see MediaStream demo)</span>
-<span class="cm">// - ImageBitmap, OffscreenCanvas, ...</span></code></pre>
-
-          <!-- Code for step 2 -->
-          <pre id="code2"><code><span class="cm">// Step 2 — save / restore state stack</span>
-<span class="kw">const</span> ctx = canvas.getContext(<span class="str">'2d'</span>);
-
-<span class="cm">// save() pushes the current state:</span>
-<span class="cm">//   - current transform matrix</span>
-<span class="cm">//   - current clipping region</span>
-<span class="cm">//   - current strokeStyle, fillStyle, lineWidth...</span>
-ctx.<span class="fn">save</span>();            <span class="cm">// stack depth: 1</span>
-
-ctx.<span class="fn">translate</span>(<span class="num">100</span>, <span class="num">50</span>);
-ctx.<span class="fn">rotate</span>(Math.PI / <span class="num">6</span>);
-
-ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">80</span>, <span class="num">40</span>);
-
-ctx.<span class="fn">restore</span>();           <span class="cm">// stack depth: 0 — back to origin</span>
-
-<span class="cm">// The rectangle drawn AFTER restore() is unaffected</span>
-<span class="cm">// by the translate + rotate we applied above.</span>
-ctx.<span class="fn">fillRect</span>(<span class="num">200</span>, <span class="num">100</span>, <span class="num">80</span>, <span class="num">40</span>);</code></pre>
-
-          <!-- Code for step 3 -->
-          <pre id="code3"><code><span class="cm">// Step 3 — clip()</span>
-<span class="kw">const</span> ctx = canvas.getContext(<span class="str">'2d'</span>);
-
-<span class="cm">// Save before clipping so we can restore later</span>
+          <div class="code-panel-header"><span>clip</span><span>JS</span></div>
+          <pre><code><span class="cm">// Save before clipping</span>
 ctx.<span class="fn">save</span>();
 
-<span class="cm">// Define a circular clip path</span>
+<span class="cm">// Define the clip path</span>
 ctx.<span class="fn">beginPath</span>();
 ctx.<span class="fn">arc</span>(<span class="num">200</span>, <span class="num">150</span>, <span class="num">120</span>, <span class="num">0</span>, Math.PI * <span class="num">2</span>);
 
-<span class="cm">// clip() — subsequent drawing is masked to this path</span>
+<span class="cm">// Subsequent drawing is masked here</span>
 ctx.<span class="fn">clip</span>();
 
-<span class="cm">// This fill only appears inside the circle</span>
 ctx.fillStyle = <span class="str">'#7c6af7'</span>;
 ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">400</span>, <span class="num">300</span>);
 
 <span class="cm">// restore() removes the clip region</span>
 ctx.<span class="fn">restore</span>();
 
-<span class="cm">// This fill covers the whole canvas</span>
-ctx.fillStyle = <span class="str">'rgba(255,255,255,0.1)'</span>;
+<span class="cm">// This now fills the whole canvas</span>
 ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">400</span>, <span class="num">300</span>);</code></pre>
+        </div>
+      </div>
+    </div>
 
-          <!-- Code for step 4 -->
-          <pre id="code4"><code><span class="cm">// Step 4 — Combined animated demo</span>
-<span class="kw">let</span> angle = <span class="num">0</span>;
-<span class="kw">let</span> rafId = <span class="kw">null</span>;
-
-<span class="kw">function</span> <span class="fn">draw</span>(img) {
+    <!-- STEP 4: combined animated demo -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">4</div>
+        <h3>Combined — animated drawImage + clip + save/restore</h3>
+      </div>
+      <div class="step-body">
+        <div>
+          <p class="step-desc">
+            Putting it all together: an image drawn each frame, clipped to a circle,
+            rotating inside a <code class="text-mono">save()</code>/<code class="text-mono">restore()</code> block.
+          </p>
+          <canvas id="c4" width="400" height="300"></canvas>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn4" onclick="demo4Toggle()">Start animation</button>
+          </div>
+        </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>combined</span><span>JS</span></div>
+          <pre><code><span class="kw">function</span> <span class="fn">draw</span>(img) {
   <span class="kw">const</span> cx = canvas.width / <span class="num">2</span>;
   <span class="kw">const</span> cy = canvas.height / <span class="num">2</span>;
   <span class="kw">const</span> r  = <span class="num">120</span>;
 
   ctx.<span class="fn">clearRect</span>(<span class="num">0</span>, <span class="num">0</span>, canvas.width, canvas.height);
 
-  <span class="cm">// save() — we will clip and rotate, don't want it to leak</span>
+  <span class="cm">// save() — clip + rotate stay contained</span>
   ctx.<span class="fn">save</span>();
 
-  <span class="cm">// 1. Define a circular clip path</span>
+  <span class="cm">// 1. Circular clip path</span>
   ctx.<span class="fn">beginPath</span>();
   ctx.<span class="fn">arc</span>(cx, cy, r, <span class="num">0</span>, Math.PI * <span class="num">2</span>);
   ctx.<span class="fn">clip</span>();
 
-  <span class="cm">// 2. Move origin to canvas center, apply rotation</span>
+  <span class="cm">// 2. Move to center, apply rotation</span>
   ctx.<span class="fn">translate</span>(cx, cy);
   ctx.<span class="fn">rotate</span>(angle);
 
-  <span class="cm">// 3. Draw image centered on the (now rotated) origin</span>
+  <span class="cm">// 3. Draw image centered on rotated origin</span>
   ctx.<span class="fn">drawImage</span>(img, -r, -r, r * <span class="num">2</span>, r * <span class="num">2</span>);
 
-  <span class="cm">// restore() — clip and transform are gone</span>
+  <span class="cm">// restore() — clip and transform gone</span>
   ctx.<span class="fn">restore</span>();
 
-  angle += <span class="num">0.01</span>;
-  rafId = <span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));
-}
-
-<span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));</code></pre>
+  angle += <span class="num">0.012</span>;
+  <span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));
+}</code></pre>
         </div>
-
-        <!-- hint to switch code panel -->
-        <p class="text-dim mt-2" style="font-size:0.78rem; text-align:center">
-          Code panel updates as you interact with each step.
-        </p>
       </div>
+    </div>
+
+    <!-- Connection callout -->
+    <div class="connection-banner">
+      <span class="connection-badge">Connected to MediaStream</span>
+      <span>
+        This canvas can become a live video stream via
+        <code class="text-mono">canvas.captureStream(30)</code> —
+        see the <a href="mediastream.html">MediaStream demo →</a>
+      </span>
     </div>
   </div>
 
   <script>
-    // ─────────────────────────────────────────────
-    // Shared helpers
-    // ─────────────────────────────────────────────
-
     function getCtx(id) {
       return document.getElementById(id).getContext('2d');
     }
@@ -239,30 +215,8 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
       c.getContext('2d').clearRect(0, 0, c.width, c.height);
     }
 
-    // Update the code panel to show the right snippet
-    function showCode(n) {
-      document.querySelectorAll('.code-panel pre').forEach(p => p.classList.remove('active'));
-      document.getElementById('code' + n).classList.add('active');
-      document.getElementById('code-label').textContent = 'Step ' + n;
-    }
+    // ── Step 1 — drawImage ──
 
-    // Observe which step is in view
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const n = e.target.id.replace('step', '');
-          showCode(n);
-        }
-      });
-    }, { threshold: 0.4 });
-
-    document.querySelectorAll('.step').forEach(s => observer.observe(s));
-
-    // ─────────────────────────────────────────────
-    // Step 1 — drawImage
-    // ─────────────────────────────────────────────
-
-    // A simple colorful SVG to use as our image
     const SVG_SRC = `data:image/svg+xml,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
         <defs>
@@ -281,20 +235,14 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
     `)}`;
 
     function demo1DrawImage() {
-      showCode(1);
       const ctx = getCtx('c1');
       clearCanvas('c1');
       const img = new Image();
       img.src = SVG_SRC;
-      img.onload = () => {
-        // Draw at (x=50, y=25) with width=300, height=200
-        ctx.drawImage(img, 50, 25, 300, 200);
-      };
+      img.onload = () => { ctx.drawImage(img, 50, 25, 300, 200); };
     }
 
-    // ─────────────────────────────────────────────
-    // Step 2 — save / restore + transforms
-    // ─────────────────────────────────────────────
+    // ── Step 2 — save / restore ──
 
     let stackDepth = 0;
     const colors = ['#7c6af7', '#34d399', '#fbbf24', '#f87171', '#7dd3fc'];
@@ -303,51 +251,24 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
       document.getElementById('depth').textContent = stackDepth;
     }
 
-    function demo2Save() {
-      showCode(2);
-      getCtx('c2').save();
-      stackDepth++;
-      updateDepth();
-    }
-
-    function demo2Restore() {
-      showCode(2);
-      if (stackDepth > 0) {
-        getCtx('c2').restore();
-        stackDepth--;
-        updateDepth();
-      }
-    }
-
-    function demo2Translate() {
-      showCode(2);
-      getCtx('c2').translate(30, 20);
-    }
-
-    function demo2Rotate() {
-      showCode(2);
-      getCtx('c2').rotate(Math.PI / 12);
-    }
-
-    function demo2DrawRect() {
-      showCode(2);
+    function demo2Save()      { getCtx('c2').save();                     stackDepth++; updateDepth(); }
+    function demo2Restore()   { if (stackDepth > 0) { getCtx('c2').restore(); stackDepth--; updateDepth(); } }
+    function demo2Translate() { getCtx('c2').translate(30, 20); }
+    function demo2Rotate()    { getCtx('c2').rotate(Math.PI / 12); }
+    function demo2DrawRect()  {
       const ctx = getCtx('c2');
       ctx.fillStyle = colors[stackDepth % colors.length];
       ctx.fillRect(80, 80, 100, 60);
     }
 
-    // ─────────────────────────────────────────────
-    // Step 3 — clip
-    // ─────────────────────────────────────────────
+    // ── Step 3 — clip ──
 
     let clipSaved = false;
 
     function demo3ShowPath() {
-      showCode(3);
       clearCanvas('c3');
       clipSaved = false;
       const ctx = getCtx('c3');
-      // Draw the clip path outline so the audience can see what will be masked
       ctx.strokeStyle = '#7c6af7';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
@@ -360,8 +281,7 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
     }
 
     function demo3Clip() {
-      showCode(3);
-      if (clipSaved) return; // already inside save block
+      if (clipSaved) return;
       clearCanvas('c3');
       clipSaved = true;
       const ctx = getCtx('c3');
@@ -372,15 +292,10 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
     }
 
     function demo3DrawInside() {
-      showCode(3);
-      if (!clipSaved) {
-        demo3Clip(); // auto-clip if not done yet
-      }
+      if (!clipSaved) demo3Clip();
       const ctx = getCtx('c3');
-      // This full-canvas fill is masked to the circle
       ctx.fillStyle = '#7c6af7';
       ctx.fillRect(0, 0, 400, 300);
-      // Some detail shapes to make it obvious
       ctx.fillStyle = '#a78bfa';
       ctx.fillRect(80, 60, 240, 180);
       ctx.fillStyle = '#34d399';
@@ -390,12 +305,10 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
     }
 
     function demo3Restore() {
-      showCode(3);
       if (!clipSaved) return;
       const ctx = getCtx('c3');
-      ctx.restore(); // removes the clip
+      ctx.restore();
       clipSaved = false;
-      // Draw outside the circle to prove the clip is gone
       ctx.fillStyle = 'rgba(255,255,255,0.06)';
       ctx.fillRect(0, 0, 400, 300);
       ctx.strokeStyle = '#34d399';
@@ -405,21 +318,13 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
       ctx.setLineDash([]);
     }
 
-    // ─────────────────────────────────────────────
-    // Step 4 — combined animated demo
-    // ─────────────────────────────────────────────
+    // ── Step 4 — combined animation ──
 
-    let angle4   = 0;
-    let rafId4   = null;
-    let running4 = false;
-    let img4     = null;
-
-    // Pre-load the image once
-    img4 = new Image();
+    let angle4 = 0, rafId4 = null, running4 = false;
+    const img4 = new Image();
     img4.src = SVG_SRC;
 
     function demo4Toggle() {
-      showCode(4);
       const btn = document.getElementById('btn4');
       if (running4) {
         cancelAnimationFrame(rafId4);
@@ -437,40 +342,27 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
     function demo4Frame() {
       if (!running4) return;
       const canvas = document.getElementById('c4');
-      const ctx    = canvas.getContext('2d');
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-      const r  = 120;
+      const ctx = canvas.getContext('2d');
+      const cx = canvas.width / 2, cy = canvas.height / 2, r = 120;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // ── save() — clip + rotation stay contained ──
       ctx.save();
-
-      // 1. Define circular clip path
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.clip();
-
-      // 2. Move to center, rotate
       ctx.translate(cx, cy);
       ctx.rotate(angle4);
-
-      // 3. drawImage centered at the rotated origin
       ctx.drawImage(img4, -r, -r, r * 2, r * 2);
-
-      // ── restore() — clip and transform removed ──
       ctx.restore();
 
-      // Draw a ring border OUTSIDE the clip (possible because we restored)
       ctx.strokeStyle = 'rgba(124,106,247,0.5)';
-      ctx.lineWidth   = 3;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
       ctx.stroke();
 
       angle4 += 0.012;
-      rafId4  = requestAnimationFrame(demo4Frame);
+      rafId4 = requestAnimationFrame(demo4Frame);
     }
   </script>
 </body>

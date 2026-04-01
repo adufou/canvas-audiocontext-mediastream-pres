@@ -100,17 +100,18 @@ a:hover { text-decoration: underline; }
   padding: 2.5rem 2rem;
 }
 
-/* ── Two-column demo layout ── */
+/* ── Step internal two-column layout ── */
 
-.demo-layout {
+.step-body {
   display: grid;
   grid-template-columns: 3fr 2fr;
-  gap: 2rem;
+  gap: 1.5rem;
   align-items: start;
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 900px) {
-  .demo-layout { grid-template-columns: 1fr; }
+  .step-body { grid-template-columns: 1fr; }
 }
 
 /* ── Step blocks ── */
@@ -243,12 +244,11 @@ video {
 /* ── Code panel ── */
 
 .code-panel {
-  position: sticky;
-  top: 64px;
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
+  height: 100%;
 }
 
 .code-panel-header {
@@ -269,10 +269,7 @@ video {
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.7;
-  display: none; /* shown by JS */
 }
-
-.code-panel pre.active { display: block; }
 
 /* Syntax spans */
 .kw  { color: var(--kw); }

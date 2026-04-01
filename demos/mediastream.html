@@ -53,7 +53,7 @@
     </p>
 
     <!-- Stream assembly visualization -->
-    <div class="stream-assembly" id="assemblyBar">
+    <div class="stream-assembly">
       <span style="color:var(--text-dim)">Tracks:</span>
       <span class="track-pill" id="pill-video">video — none</span>
       <span class="track-pill" id="pill-audio">audio — none</span>
@@ -61,21 +61,19 @@
       <span class="track-pill" id="pill-combo">combined stream — not ready</span>
     </div>
 
-    <div class="demo-layout">
-      <!-- ── LEFT ── -->
-      <div>
-
-        <!-- STEP 1: canvas.captureStream() -->
-        <div class="step" id="step1">
-          <div class="step-header">
-            <div class="step-number">1</div>
-            <h3>canvas.captureStream()</h3>
-          </div>
+    <!-- STEP 1: canvas.captureStream() -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <h3>canvas.captureStream()</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             A live canvas animation can be captured as a
             <code class="text-mono">MediaStream</code> at a given frame rate.
             The resulting stream has one <code class="text-mono">VideoStreamTrack</code> —
-            and it's live: every canvas frame appears in the stream.
+            it's live: every canvas frame appears in the stream.
           </p>
           <div class="side-by-side">
             <div>
@@ -93,23 +91,45 @@
           </div>
           <div class="state-badge mt-1" id="videoState">video track — not captured</div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>captureStream</span><span>JS</span></div>
+          <pre><code><span class="cm">// Check support (Safari needs a flag)</span>
+<span class="kw">if</span> (!canvas.captureStream) {
+  console.<span class="fn">error</span>(<span class="str">'not supported'</span>);
+}
 
-        <!-- STEP 2: getUserMedia -->
-        <div class="step" id="step2">
-          <div class="step-header">
-            <div class="step-number">2</div>
-            <h3>getUserMedia — microphone access</h3>
-          </div>
+<span class="cm">// Capture at 30 fps → MediaStream</span>
+<span class="kw">const</span> stream = canvas.<span class="fn">captureStream</span>(<span class="num">30</span>);
 
+<span class="kw">const</span> [videoTrack] = stream.<span class="fn">getVideoTracks</span>();
+console.<span class="fn">log</span>(videoTrack.kind);  <span class="cm">// "video"</span>
+console.<span class="fn">log</span>(videoTrack.label); <span class="cm">// "canvas"</span>
+
+<span class="cm">// Play in a video element</span>
+video.srcObject = stream;
+
+<span class="cm">// Stop:</span>
+stream.<span class="fn">getTracks</span>().<span class="fn">forEach</span>(t => t.<span class="fn">stop</span>());</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: getUserMedia -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <h3>getUserMedia — microphone access</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <div class="warning-banner" id="fileWarning">
             getUserMedia requires HTTPS or localhost.
-            Serve this file with: <code>python3 -m http.server</code> and open <code>http://localhost:8000</code>
+            Serve with: <code>python3 -m http.server</code> → open <code>http://localhost:8000</code>
           </div>
-
           <p class="step-desc">
-            <code class="text-mono">navigator.mediaDevices.getUserMedia()</code> returns a Promise that resolves
-            to a <code class="text-mono">MediaStream</code>. We mute the audio element to prevent feedback —
-            but the track is live and usable.
+            <code class="text-mono">navigator.mediaDevices.getUserMedia()</code> returns a Promise
+            resolving to a <code class="text-mono">MediaStream</code>. The audio element is muted to
+            prevent feedback — but the track is live and usable.
           </p>
           <div class="meter-wrap">
             <div class="meter-bar" id="micMeter"></div>
@@ -119,17 +139,41 @@
           </div>
           <div class="state-badge mt-1" id="micState">mic — not requested</div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>getUserMedia</span><span>JS</span></div>
+          <pre><code><span class="cm">// Requires HTTPS or localhost</span>
+<span class="kw">const</span> stream = <span class="kw">await</span> navigator.mediaDevices
+  .<span class="fn">getUserMedia</span>({ audio: <span class="kw">true</span>, video: <span class="kw">false</span> });
 
-        <!-- STEP 3: createMediaStreamDestination -->
-        <div class="step" id="step3">
-          <div class="step-header">
-            <div class="step-number">3</div>
-            <h3>AudioContext → MediaStream</h3>
-          </div>
+<span class="kw">const</span> [audioTrack] = stream.<span class="fn">getAudioTracks</span>();
+console.<span class="fn">log</span>(audioTrack.label); <span class="cm">// "Built-in Mic"</span>
+
+<span class="cm">// Visualize mic level without feedback:</span>
+<span class="cm">// connect source → analyser (NOT → destination)</span>
+<span class="kw">const</span> source   = audioCtx.<span class="fn">createMediaStreamSource</span>(stream);
+<span class="kw">const</span> analyser = audioCtx.<span class="fn">createAnalyser</span>();
+source.<span class="fn">connect</span>(analyser);
+
+<span class="kw">const</span> data = <span class="kw">new</span> <span class="fn">Float32Array</span>(analyser.fftSize);
+analyser.<span class="fn">getFloatTimeDomainData</span>(data);
+<span class="kw">const</span> rms = Math.<span class="fn">sqrt</span>(
+  data.<span class="fn">reduce</span>((s, v) => s + v * v, <span class="num">0</span>) / data.length
+);</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: createMediaStreamDestination -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <h3>AudioContext → MediaStream</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
-            <code class="text-mono">audioCtx.createMediaStreamDestination()</code> creates a node whose
-            <code class="text-mono">.stream</code> is a live
-            <code class="text-mono">MediaStream</code>.
+            <code class="text-mono">audioCtx.createMediaStreamDestination()</code> creates a node
+            whose <code class="text-mono">.stream</code> is a live <code class="text-mono">MediaStream</code>.
             The audio is <em>not</em> played to the speakers — only available as a track.
             Perfect for recording or mixing without feedback.
           </p>
@@ -141,163 +185,84 @@
             </label>
           </div>
           <div class="btn-row mt-1">
-            <button class="btn btn-green"  id="btnSynth" onclick="startSynth()">Start synth tone</button>
+            <button class="btn btn-green"  id="btnSynth"     onclick="startSynth()">Start synth tone</button>
             <button class="btn btn-danger" id="btnSynthStop" onclick="stopSynth()" disabled>Stop synth</button>
           </div>
           <div class="state-badge mt-1" id="synthState">synth audio track — not created</div>
         </div>
-
-        <!-- STEP 4: Combine tracks -->
-        <div class="step" id="step4">
-          <div class="step-header">
-            <div class="step-number">4</div>
-            <h3>new MediaStream([videoTrack, audioTrack])</h3>
-          </div>
-          <p class="step-desc">
-            <code class="text-mono">new MediaStream([...tracks])</code> is the compositor.
-            Pick any tracks from any source — camera, canvas, microphone, synthesizer — and combine them
-            into a single stream. This stream can be played, recorded, or sent over WebRTC.
-          </p>
-          <video id="combinedVideo" autoplay playsinline controls style="width:100%; max-width:400px; margin-top:0.5rem"></video>
-          <div class="btn-row mt-1">
-            <button class="btn btn-primary" id="btnCombine" onclick="combineStreams()" disabled>Combine tracks</button>
-          </div>
-          <div class="state-badge mt-1" id="combineState">combined stream — not ready</div>
-        </div>
-
-        <!-- Bonus: MediaRecorder -->
-        <details>
-          <summary>Bonus: MediaRecorder — record the stream to a file</summary>
-          <div class="step" style="border:none; background:transparent; padding:0.5rem 0">
-            <p class="step-desc">
-              <code class="text-mono">MediaRecorder</code> records any
-              <code class="text-mono">MediaStream</code> to a Blob.
-              Here we record the combined stream for 3 seconds and offer a download.
-            </p>
-            <div class="btn-row">
-              <button class="btn btn-primary" id="btnRecord" onclick="recordStream()" disabled>Record 3s</button>
-              <a id="downloadLink" style="display:none" class="btn btn-green">Download recording</a>
-            </div>
-            <div class="state-badge mt-1" id="recordState">recorder — idle</div>
-          </div>
-        </details>
-
-        <!-- Connection callouts -->
-        <div class="connection-banner mt-3">
-          <span class="connection-badge">Connected to Canvas</span>
-          <span>Step 1 uses the Canvas API — see <a href="canvas.html">Canvas demo →</a></span>
-        </div>
-        <div class="connection-banner mt-2">
-          <span class="connection-badge">Connected to AudioContext</span>
-          <span>Step 3 uses an AudioContext oscillator — see <a href="audiocontext.html">AudioContext demo →</a></span>
-        </div>
-
-      </div>
-
-      <!-- ── RIGHT: code panel ── -->
-      <div>
         <div class="code-panel">
-          <div class="code-panel-header">
-            <span id="code-label">mediastream.html</span>
-            <span>JS</span>
-          </div>
+          <div class="code-panel-header"><span>MediaStreamDestination</span><span>JS</span></div>
+          <pre><code><span class="kw">const</span> audioCtx = <span class="kw">new</span> <span class="fn">AudioContext</span>();
 
-          <pre id="code1" class="active"><code><span class="cm">// Step 1 — canvas.captureStream()</span>
-
-<span class="kw">const</span> canvas = document.getElementById(<span class="str">'animCanvas'</span>);
-
-<span class="cm">// Check support (Safari requires a flag)</span>
-<span class="kw">if</span> (!canvas.captureStream) {
-  console.<span class="fn">error</span>(<span class="str">'captureStream not supported'</span>);
-}
-
-<span class="cm">// Capture at 30 fps → returns a MediaStream</span>
-<span class="kw">const</span> stream = canvas.<span class="fn">captureStream</span>(<span class="num">30</span>);
-
-<span class="cm">// The stream has one VideoStreamTrack</span>
-<span class="kw">const</span> [videoTrack] = stream.<span class="fn">getVideoTracks</span>();
-console.<span class="fn">log</span>(videoTrack.kind);   <span class="cm">// "video"</span>
-console.<span class="fn">log</span>(videoTrack.label);  <span class="cm">// "canvas"</span>
-
-<span class="cm">// Play the stream in a video element</span>
-<span class="kw">const</span> video = document.getElementById(<span class="str">'canvasVideo'</span>);
-video.srcObject = stream;
-
-<span class="cm">// To stop: stop all tracks</span>
-stream.<span class="fn">getTracks</span>().<span class="fn">forEach</span>(t => t.<span class="fn">stop</span>());</code></pre>
-
-          <pre id="code2"><code><span class="cm">// Step 2 — getUserMedia (microphone)</span>
-
-<span class="cm">// Requires HTTPS or localhost</span>
-<span class="kw">const</span> stream = <span class="kw">await</span> navigator.mediaDevices
-  .<span class="fn">getUserMedia</span>({ audio: <span class="kw">true</span>, video: <span class="kw">false</span> });
-
-<span class="kw">const</span> [audioTrack] = stream.<span class="fn">getAudioTracks</span>();
-console.<span class="fn">log</span>(audioTrack.kind);   <span class="cm">// "audio"</span>
-console.<span class="fn">log</span>(audioTrack.label);  <span class="cm">// "Built-in Microphone"</span>
-
-<span class="cm">// Hook into AudioContext to visualize the mic level</span>
-<span class="kw">const</span> source   = audioCtx.<span class="fn">createMediaStreamSource</span>(stream);
-<span class="kw">const</span> analyser = audioCtx.<span class="fn">createAnalyser</span>();
-source.<span class="fn">connect</span>(analyser);
-<span class="cm">// Note: NOT connected to destination → no feedback</span>
-
-<span class="cm">// Read amplitude for the meter</span>
-<span class="kw">const</span> data = <span class="kw">new</span> <span class="fn">Float32Array</span>(analyser.fftSize);
-analyser.<span class="fn">getFloatTimeDomainData</span>(data);
-<span class="kw">const</span> rms = Math.<span class="fn">sqrt</span>(data.<span class="fn">reduce</span>((s,v) => s + v*v, <span class="num">0</span>) / data.length);</code></pre>
-
-          <pre id="code3"><code><span class="cm">// Step 3 — AudioContext → MediaStream</span>
-
-<span class="kw">const</span> audioCtx = <span class="kw">new</span> <span class="fn">AudioContext</span>();
-
-<span class="cm">// MediaStreamDestination node — does NOT play to speakers</span>
+<span class="cm">// Does NOT play to speakers</span>
 <span class="kw">const</span> dest = audioCtx.<span class="fn">createMediaStreamDestination</span>();
 
-<span class="cm">// Connect an oscillator into it</span>
 <span class="kw">const</span> osc = audioCtx.<span class="fn">createOscillator</span>();
 osc.frequency.value = <span class="num">440</span>;
 osc.<span class="fn">connect</span>(dest);
 osc.<span class="fn">start</span>();
 
 <span class="cm">// dest.stream is a live MediaStream</span>
-<span class="kw">const</span> synthStream = dest.stream;
-<span class="kw">const</span> [audioTrack] = synthStream.<span class="fn">getAudioTracks</span>();
+<span class="kw">const</span> [audioTrack] = dest.stream.<span class="fn">getAudioTracks</span>();
+console.<span class="fn">log</span>(audioTrack.kind); <span class="cm">// "audio"</span>
 
-<span class="cm">// The oscillator runs silently until we use the track</span>
-console.<span class="fn">log</span>(audioTrack.kind);  <span class="cm">// "audio"</span></code></pre>
+<span class="cm">// The oscillator runs silently</span>
+<span class="cm">// until we use its track somewhere.</span></code></pre>
+        </div>
+      </div>
+    </div>
 
-          <pre id="code4"><code><span class="cm">// Step 4 — Combine tracks</span>
+    <!-- STEP 4: Combine tracks -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">4</div>
+        <h3>new MediaStream([videoTrack, audioTrack])</h3>
+      </div>
+      <div class="step-body">
+        <div>
+          <p class="step-desc">
+            <code class="text-mono">new MediaStream([...tracks])</code> is the compositor.
+            Pick any tracks from any source and combine them into a single stream.
+            This stream can be played, recorded, or sent over WebRTC.
+          </p>
+          <video id="combinedVideo" autoplay playsinline controls
+                 style="width:100%; max-width:400px; margin-top:0.5rem"></video>
+          <div class="btn-row mt-1">
+            <button class="btn btn-primary" id="btnCombine" onclick="combineStreams()" disabled>Combine tracks</button>
+          </div>
+          <div class="state-badge mt-1" id="combineState">combined stream — not ready</div>
 
-<span class="cm">// Pick one track from each source</span>
-<span class="kw">const</span> videoTrack = canvasStream.<span class="fn">getVideoTracks</span>()[<span class="num">0</span>];
+          <details style="margin-top:1rem">
+            <summary>Bonus: MediaRecorder — record to a file</summary>
+            <p class="step-desc mt-1">
+              <code class="text-mono">MediaRecorder</code> records any
+              <code class="text-mono">MediaStream</code> to a Blob.
+            </p>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="btnRecord" onclick="recordStream()" disabled>Record 3s</button>
+              <a id="downloadLink" style="display:none" class="btn btn-green">Download recording</a>
+            </div>
+            <div class="state-badge mt-1" id="recordState">recorder — idle</div>
+          </details>
+        </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>Combine tracks</span><span>JS</span></div>
+          <pre><code><span class="kw">const</span> videoTrack = canvasStream.<span class="fn">getVideoTracks</span>()[<span class="num">0</span>];
 <span class="kw">const</span> audioTrack = synthStream.<span class="fn">getAudioTracks</span>()[<span class="num">0</span>];
 
-<span class="cm">// new MediaStream([...tracks]) is the compositor</span>
+<span class="cm">// Compositor — pick tracks from any source</span>
 <span class="kw">const</span> combined = <span class="kw">new</span> <span class="fn">MediaStream</span>([videoTrack, audioTrack]);
 
-<span class="cm">// Play it back</span>
-<span class="kw">const</span> video = document.getElementById(<span class="str">'combinedVideo'</span>);
 video.srcObject = combined;
 
-<span class="cm">// combined.getTracks() returns [videoTrack, audioTrack]</span>
-<span class="cm">// You could also add a mic audio track instead of the synth,</span>
-<span class="cm">// or mix multiple audio tracks via AudioContext and route</span>
-<span class="cm">// the result to a single MediaStreamDestination.</span></code></pre>
-
-          <pre id="code-bonus"><code><span class="cm">// Bonus — MediaRecorder</span>
-
+<span class="cm">// Bonus: record it</span>
 <span class="kw">const</span> recorder = <span class="kw">new</span> <span class="fn">MediaRecorder</span>(combined);
 <span class="kw">const</span> chunks = [];
 
 recorder.ondataavailable = e => chunks.<span class="fn">push</span>(e.data);
 recorder.onstop = () => {
   <span class="kw">const</span> blob = <span class="kw">new</span> <span class="fn">Blob</span>(chunks, { type: <span class="str">'video/webm'</span> });
-  <span class="kw">const</span> url  = URL.<span class="fn">createObjectURL</span>(blob);
-  <span class="cm">// Create a download link</span>
-  link.href     = url;
-  link.download = <span class="str">'recording.webm'</span>;
-  link.style.display = <span class="str">'inline-flex'</span>;
+  link.href = URL.<span class="fn">createObjectURL</span>(blob);
 };
 
 recorder.<span class="fn">start</span>();
@@ -305,53 +270,39 @@ recorder.<span class="fn">start</span>();
         </div>
       </div>
     </div>
+
+    <!-- Connection callouts -->
+    <div class="connection-banner mt-3">
+      <span class="connection-badge">Connected to Canvas</span>
+      <span>Step 1 uses the Canvas API — see <a href="canvas.html">Canvas demo →</a></span>
+    </div>
+    <div class="connection-banner mt-2">
+      <span class="connection-badge">Connected to AudioContext</span>
+      <span>Step 3 uses an AudioContext oscillator — see <a href="audiocontext.html">AudioContext demo →</a></span>
+    </div>
   </div>
 
   <script>
-    // ─────────────────────────────────────────────
-    // State
-    // ─────────────────────────────────────────────
-
     let canvasStream   = null;
     let animRafId      = null;
     let micStream      = null;
     let micAnalyser    = null;
     let micAudioCtx    = null;
-    let micMeterRafId  = null;
     let synthAudioCtx  = null;
     let synthOsc       = null;
     let synthDest      = null;
     let synthStream    = null;
     let combinedStream = null;
 
-    // Show file:// warning for getUserMedia
     if (location.protocol === 'file:') {
       document.getElementById('fileWarning').style.display = 'block';
     }
 
-    // Code panel
-    function showCode(n) {
-      document.querySelectorAll('.code-panel pre').forEach(p => p.classList.remove('active'));
-      const el = document.getElementById('code' + n);
-      if (el) { el.classList.add('active'); }
-      document.getElementById('code-label').textContent = 'Step ' + n;
-    }
-
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) showCode(e.target.id.replace('step', ''));
-      });
-    }, { threshold: 0.4 });
-    document.querySelectorAll('.step').forEach(s => observer.observe(s));
-
-    // ─────────────────────────────────────────────
-    // Bouncing ball animation on the canvas
-    // ─────────────────────────────────────────────
+    // ── Bouncing ball animation ──
 
     const animCanvas = document.getElementById('animCanvas');
     const animCtx    = animCanvas.getContext('2d');
     const W = animCanvas.width, H = animCanvas.height;
-
     let ball = { x: W/2, y: H/2, r: 18, vx: 3.2, vy: 2.1 };
     const ballColors = ['#7c6af7', '#34d399', '#fbbf24', '#f87171', '#7dd3fc'];
     let colorIdx = 0;
@@ -359,58 +310,33 @@ recorder.<span class="fn">start</span>();
     function drawFrame() {
       animCtx.fillStyle = '#111';
       animCtx.fillRect(0, 0, W, H);
-
-      // Move ball
       ball.x += ball.vx;
       ball.y += ball.vy;
-      if (ball.x - ball.r < 0 || ball.x + ball.r > W) {
-        ball.vx *= -1;
-        colorIdx = (colorIdx + 1) % ballColors.length;
-      }
-      if (ball.y - ball.r < 0 || ball.y + ball.r > H) {
-        ball.vy *= -1;
-        colorIdx = (colorIdx + 1) % ballColors.length;
-      }
-
-      // Draw ball
+      if (ball.x - ball.r < 0 || ball.x + ball.r > W) { ball.vx *= -1; colorIdx = (colorIdx + 1) % ballColors.length; }
+      if (ball.y - ball.r < 0 || ball.y + ball.r > H) { ball.vy *= -1; colorIdx = (colorIdx + 1) % ballColors.length; }
       animCtx.beginPath();
       animCtx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
       animCtx.fillStyle = ballColors[colorIdx];
       animCtx.fill();
-
-      // Draw label
       animCtx.fillStyle = 'rgba(255,255,255,0.4)';
       animCtx.font = '11px monospace';
       animCtx.fillText('canvas.captureStream()', 8, H - 8);
-
-      animRafId = requestAnimationFrame(drawFrame);
+      requestAnimationFrame(drawFrame);
     }
-
-    // Start the canvas animation immediately (so it's visible)
     drawFrame();
 
-    // ─────────────────────────────────────────────
-    // Step 1: captureStream
-    // ─────────────────────────────────────────────
+    // ── Step 1: captureStream ──
 
     function captureCanvasStream() {
-      showCode(1);
-      if (!animCanvas.captureStream) {
-        alert('canvas.captureStream() not supported in this browser.');
-        return;
-      }
+      if (!animCanvas.captureStream) { alert('canvas.captureStream() not supported in this browser.'); return; }
       if (canvasStream) return;
-
       canvasStream = animCanvas.captureStream(30);
       document.getElementById('canvasVideo').srcObject = canvasStream;
-
       const [vt] = canvasStream.getVideoTracks();
       updatePill('video', `video: ${vt.label || 'canvas'}`, 'active-video');
-
       const st = document.getElementById('videoState');
       st.textContent = 'video track — live (canvas)';
       st.className   = 'state-badge active';
-
       document.getElementById('btnStopCanvas').disabled = false;
       checkCombineReady();
     }
@@ -428,27 +354,20 @@ recorder.<span class="fn">start</span>();
       checkCombineReady();
     }
 
-    // ─────────────────────────────────────────────
-    // Step 2: getUserMedia (mic)
-    // ─────────────────────────────────────────────
+    // ── Step 2: getUserMedia ──
 
     async function requestMic() {
-      showCode(2);
       try {
         micStream   = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         micAudioCtx = new AudioContext();
         micAnalyser = micAudioCtx.createAnalyser();
         micAnalyser.fftSize = 256;
-
         const source = micAudioCtx.createMediaStreamSource(micStream);
-        source.connect(micAnalyser);
-        // NOT connected to destination — avoids feedback
-
+        source.connect(micAnalyser); // NOT to destination — no feedback
         const [at] = micStream.getAudioTracks();
         const st = document.getElementById('micState');
         st.textContent = `mic — live (${at.label || 'microphone'})`;
         st.className   = 'state-badge active';
-
         startMicMeter();
       } catch (err) {
         const st = document.getElementById('micState');
@@ -460,64 +379,44 @@ recorder.<span class="fn">start</span>();
     function startMicMeter() {
       const data = new Float32Array(micAnalyser.fftSize);
       const bar  = document.getElementById('micMeter');
-
       function tick() {
         micAnalyser.getFloatTimeDomainData(data);
         const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
         bar.style.width = Math.min(rms * 500, 100) + '%';
-        micMeterRafId = requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       }
       tick();
     }
 
-    // ─────────────────────────────────────────────
-    // Step 3: AudioContext → MediaStreamDestination
-    // ─────────────────────────────────────────────
+    // ── Step 3: AudioContext → MediaStreamDestination ──
 
     function startSynth() {
-      showCode(3);
       if (synthOsc) return;
-
       synthAudioCtx = new AudioContext();
       synthDest     = synthAudioCtx.createMediaStreamDestination();
-
       const gain = synthAudioCtx.createGain();
       gain.gain.value = 0.6;
-
       synthOsc = synthAudioCtx.createOscillator();
       synthOsc.type = 'sine';
       synthOsc.frequency.value = parseFloat(document.getElementById('synthFreq').value);
       synthOsc.connect(gain);
       gain.connect(synthDest);
       synthOsc.start();
-
       synthStream = synthDest.stream;
-
-      document.getElementById('synthFreq').disabled = false;
+      document.getElementById('synthFreq').disabled    = false;
       document.getElementById('btnSynth').disabled     = true;
       document.getElementById('btnSynthStop').disabled = false;
-
       const [at] = synthStream.getAudioTracks();
       updatePill('audio', `audio: ${at.label || 'synth'}`, 'active-audio');
-
       const st = document.getElementById('synthState');
       st.textContent = 'synth audio track — live';
       st.className   = 'state-badge active';
-
       checkCombineReady();
     }
 
     function stopSynth() {
-      if (synthOsc) {
-        synthOsc.stop();
-        synthOsc = null;
-      }
-      if (synthAudioCtx) {
-        synthAudioCtx.close();
-        synthAudioCtx = null;
-        synthDest     = null;
-        synthStream   = null;
-      }
+      if (synthOsc) { synthOsc.stop(); synthOsc = null; }
+      if (synthAudioCtx) { synthAudioCtx.close(); synthAudioCtx = null; synthDest = null; synthStream = null; }
       document.getElementById('btnSynth').disabled     = false;
       document.getElementById('btnSynthStop').disabled = true;
       updatePill('audio', 'audio — none', '');
@@ -529,82 +428,52 @@ recorder.<span class="fn">start</span>();
 
     function updateSynthFreq(val) {
       document.getElementById('synthFreqVal').textContent = val;
-      if (synthOsc) {
-        synthOsc.frequency.setTargetAtTime(parseFloat(val), synthAudioCtx.currentTime, 0.01);
-      }
+      if (synthOsc) synthOsc.frequency.setTargetAtTime(parseFloat(val), synthAudioCtx.currentTime, 0.01);
     }
 
-    // ─────────────────────────────────────────────
-    // Step 4: Combine tracks
-    // ─────────────────────────────────────────────
+    // ── Step 4: Combine tracks ──
 
     function checkCombineReady() {
       const ready = canvasStream && canvasStream.active && synthStream;
       document.getElementById('btnCombine').disabled = !ready;
-      document.getElementById('btnRecord').disabled  = !combinedStream;
     }
 
     function combineStreams() {
-      showCode(4);
       if (!canvasStream || !synthStream) return;
-
       const videoTrack = canvasStream.getVideoTracks()[0];
       const audioTrack = synthStream.getAudioTracks()[0];
-
-      if (!videoTrack || !audioTrack) {
-        alert('A track is missing — make sure both canvas capture and synth are running.');
-        return;
-      }
-
+      if (!videoTrack || !audioTrack) { alert('A track is missing.'); return; }
       combinedStream = new MediaStream([videoTrack, audioTrack]);
       document.getElementById('combinedVideo').srcObject = combinedStream;
-
-      updatePill('combo', `combined: 1 video + 1 audio track`, 'active-combo');
-
+      updatePill('combo', 'combined: 1 video + 1 audio track', 'active-combo');
       const st = document.getElementById('combineState');
       st.textContent = 'combined stream — playing';
       st.className   = 'state-badge active';
-
       document.getElementById('btnRecord').disabled = false;
     }
 
-    // ─────────────────────────────────────────────
-    // Bonus: MediaRecorder
-    // ─────────────────────────────────────────────
+    // ── Bonus: MediaRecorder ──
 
     function recordStream() {
       if (!combinedStream) return;
-      showCode('bonus');
-
       const chunks   = [];
       const recorder = new MediaRecorder(combinedStream);
-
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url  = URL.createObjectURL(blob);
         const link = document.getElementById('downloadLink');
-        link.href     = url;
-        link.download = 'recording.webm';
-        link.style.display = 'inline-flex';
-
+        link.href = url; link.download = 'recording.webm'; link.style.display = 'inline-flex';
         const st = document.getElementById('recordState');
-        st.textContent = 'recorder — done, download ready';
+        st.textContent = 'done — download ready';
         st.className   = 'state-badge active';
       };
-
       const st = document.getElementById('recordState');
       st.textContent = 'recording… (3s)';
-      st.className   = 'state-badge';
       document.getElementById('btnRecord').disabled = true;
-
       recorder.start();
       setTimeout(() => recorder.stop(), 3000);
     }
-
-    // ─────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────
 
     function updatePill(type, label, cls) {
       const el = document.getElementById('pill-' + type);

@@ -35,27 +35,23 @@
       <div class="sf-node" id="sf-canvas" style="border-color:var(--accent);color:var(--accent2)">Canvas (FFT)</div>
     </div>
 
-    <div class="demo-layout" style="margin-top:1.5rem">
-      <!-- ── LEFT ── -->
-      <div>
-
-        <!-- STEP 1: Create AudioContext + Oscillator -->
-        <div class="step" id="step1">
-          <div class="step-header">
-            <div class="step-number">1</div>
-            <h3>AudioContext + OscillatorNode</h3>
-          </div>
+    <!-- STEP 1: AudioContext + Oscillator -->
+    <div class="step" style="margin-top:1.5rem">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <h3>AudioContext + OscillatorNode</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             Browsers require a user gesture before any audio can play.
             Click <strong>Start AudioContext</strong> first — this unlocks the audio system.
             OscillatorNodes are <em>one-shot</em>: a new node is created on each Play click.
           </p>
-
           <div class="btn-row">
             <button class="btn btn-primary" id="btnInit" onclick="initContext()">Start AudioContext</button>
             <span class="state-badge" id="ctxState">not started</span>
           </div>
-
           <div class="control-row mt-2">
             <label>
               Frequency: <span id="freqVal">440</span> Hz
@@ -77,18 +73,41 @@
             <button class="btn btn-danger" id="btnStop" onclick="stopOsc()"  disabled>■ Stop</button>
           </div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>AudioContext + Oscillator</span><span>JS</span></div>
+          <pre><code><span class="cm">// Must be inside a user-gesture handler</span>
+<span class="kw">const</span> audioCtx = <span class="kw">new</span> <span class="fn">AudioContext</span>();
+<span class="kw">await</span> audioCtx.<span class="fn">resume</span>();
 
-        <!-- STEP 2: GainNode -->
-        <div class="step" id="step2">
-          <div class="step-header">
-            <div class="step-number">2</div>
-            <h3>GainNode — volume control</h3>
-          </div>
+<span class="cm">// Oscillators are ONE-SHOT:</span>
+<span class="cm">// .start() can only be called once per node.</span>
+<span class="cm">// Create a new oscillator each time you play.</span>
+<span class="kw">let</span> osc = audioCtx.<span class="fn">createOscillator</span>();
+osc.type = <span class="str">'sine'</span>; <span class="cm">// sine|square|triangle|sawtooth</span>
+osc.frequency.<span class="fn">setValueAtTime</span>(<span class="num">440</span>, audioCtx.currentTime);
+
+osc.<span class="fn">connect</span>(audioCtx.destination);
+osc.<span class="fn">start</span>();
+
+<span class="cm">// To stop:</span>
+osc.<span class="fn">stop</span>();
+osc.<span class="fn">disconnect</span>();</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: GainNode -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <h3>GainNode — volume control</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
             A <code class="text-mono">GainNode</code> multiplies the signal by its
-            <code class="text-mono">gain.value</code>. Audio parameters can be set instantly
-            or automated over time with <code class="text-mono">.setValueAtTime()</code>,
-            <code class="text-mono">.linearRampToValueAtTime()</code>, etc.
+            <code class="text-mono">gain.value</code>. Audio parameters can be automated over time
+            with <code class="text-mono">.setTargetAtTime()</code> to avoid clicks and pops.
           </p>
           <div class="control-row">
             <label>
@@ -98,15 +117,38 @@
             </label>
           </div>
         </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>GainNode</span><span>JS</span></div>
+          <pre><code><span class="kw">const</span> gain = audioCtx.<span class="fn">createGain</span>();
+gain.gain.value = <span class="num">0.7</span>; <span class="cm">// 0 = silence, 1 = full</span>
 
-        <!-- STEP 3: BiquadFilterNode -->
-        <div class="step" id="step3">
-          <div class="step-header">
-            <div class="step-number">3</div>
-            <h3>BiquadFilterNode — EQ / filtering</h3>
-          </div>
+<span class="cm">// osc → gain → speakers</span>
+osc.<span class="fn">connect</span>(gain);
+gain.<span class="fn">connect</span>(audioCtx.destination);
+
+<span class="cm">// Smooth ramp — avoids clicks</span>
+gain.gain.<span class="fn">setTargetAtTime</span>(
+  newVolume,
+  audioCtx.currentTime,
+  <span class="num">0.01</span>  <span class="cm">// time constant (s)</span>
+);
+
+<span class="cm">// Or direct (fine for small changes):</span>
+gain.gain.value = <span class="num">0.5</span>;</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: BiquadFilterNode -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <h3>BiquadFilterNode — EQ / filtering</h3>
+      </div>
+      <div class="step-body">
+        <div>
           <p class="step-desc">
-            Filters shape the frequency spectrum. Try a <em>lowpass</em> at 500 Hz with the square wave —
+            Filters shape the frequency spectrum. Try <em>lowpass</em> at 500 Hz with the square wave —
             you'll hear the harmonics disappear, rounding the harsh tone.
           </p>
           <div class="control-row">
@@ -132,143 +174,59 @@
             </label>
           </div>
         </div>
-
-        <!-- STEP 4: AnalyserNode + Canvas -->
-        <div class="step" id="step4">
-          <div class="step-header">
-            <div class="step-number">4</div>
-            <h3>AnalyserNode → Canvas — real-time visualizer</h3>
-          </div>
-          <p class="step-desc">
-            The <code class="text-mono">AnalyserNode</code> exposes the audio signal as raw data — either
-            time-domain (waveform) or frequency-domain (FFT spectrum). We draw it on a Canvas each frame with
-            <code class="text-mono">requestAnimationFrame</code>.
-          </p>
-          <canvas id="vizCanvas" class="visualizer-canvas" width="600" height="130"></canvas>
-          <div class="viz-btn-row">
-            <button class="btn" id="btnVizWave"   onclick="setVizMode('wave')"      disabled>Waveform</button>
-            <button class="btn btn-primary" id="btnVizFreq" onclick="setVizMode('freq')" disabled>Spectrum (FFT)</button>
-          </div>
-        </div>
-
-        <!-- STEP 5: Full chain -->
-        <div class="step" id="step5">
-          <div class="step-header">
-            <div class="step-number">5</div>
-            <h3>Full signal chain</h3>
-          </div>
-          <p class="step-desc">
-            Wire all nodes with chained <code class="text-mono">.connect()</code> calls.
-            Watch the signal flow diagram above light up as the audio passes through each node.
-          </p>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btnChain" onclick="runFullChain()" disabled>Run full chain</button>
-            <button class="btn btn-danger"  id="btnStopChain" onclick="stopOsc()" disabled style="display:none">Stop</button>
-          </div>
-        </div>
-
-        <!-- Connection callouts -->
-        <div class="connection-banner">
-          <span class="connection-badge">Connected to MediaStream</span>
-          <span>
-            The oscillator can feed a
-            <code class="text-mono">MediaStreamDestination</code> to create a synthetic audio track —
-            see <a href="mediastream.html">MediaStream demo step 3 →</a>
-          </span>
-        </div>
-        <div class="connection-banner mt-2">
-          <span class="connection-badge">Connected to Canvas</span>
-          <span>
-            The AnalyserNode data feeds the Canvas visualizer above —
-            the same Canvas API from <a href="canvas.html">Canvas demo →</a>
-          </span>
-        </div>
-
-      </div>
-
-      <!-- ── RIGHT: code panel ── -->
-      <div>
         <div class="code-panel">
-          <div class="code-panel-header">
-            <span id="code-label">audiocontext.html</span>
-            <span>JS</span>
-          </div>
+          <div class="code-panel-header"><span>BiquadFilterNode</span><span>JS</span></div>
+          <pre><code><span class="kw">const</span> filter = audioCtx.<span class="fn">createBiquadFilter</span>();
+filter.type            = <span class="str">'lowpass'</span>;
+filter.frequency.value = <span class="num">2000</span>; <span class="cm">// cutoff in Hz</span>
+filter.Q.value         = <span class="num">1</span>;    <span class="cm">// resonance</span>
 
-          <pre id="code1" class="active"><code><span class="cm">// Step 1 — AudioContext + OscillatorNode</span>
-
-<span class="cm">// Must be created inside a user-gesture handler</span>
-<span class="kw">const</span> audioCtx = <span class="kw">new</span> <span class="fn">AudioContext</span>();
-<span class="kw">await</span> audioCtx.<span class="fn">resume</span>();   <span class="cm">// ensure it's running</span>
-
-<span class="cm">// OscillatorNode generates a tone</span>
-<span class="cm">// IMPORTANT: oscillators are one-shot.</span>
-<span class="cm">// You can only call .start() once per node.</span>
-<span class="cm">// Create a new oscillator each time you want to play.</span>
-<span class="kw">let</span> osc = audioCtx.<span class="fn">createOscillator</span>();
-osc.type      = <span class="str">'sine'</span>;        <span class="cm">// sine | square | triangle | sawtooth</span>
-osc.frequency.<span class="fn">setValueAtTime</span>(<span class="num">440</span>, audioCtx.currentTime);
-
-osc.<span class="fn">connect</span>(audioCtx.destination);
-osc.<span class="fn">start</span>();
-
-<span class="cm">// To stop:</span>
-osc.<span class="fn">stop</span>();
-osc.<span class="fn">disconnect</span>();</code></pre>
-
-          <pre id="code2"><code><span class="cm">// Step 2 — GainNode</span>
-
-<span class="kw">const</span> gain = audioCtx.<span class="fn">createGain</span>();
-gain.gain.value = <span class="num">0.7</span>;  <span class="cm">// 0 = silence, 1 = full volume</span>
-
-<span class="cm">// Wire: oscillator → gain → speakers</span>
-osc.<span class="fn">connect</span>(gain);
-gain.<span class="fn">connect</span>(audioCtx.destination);
-
-<span class="cm">// Update in real time (no clicks/pops at high gain values)</span>
-gain.gain.<span class="fn">setTargetAtTime</span>(
-  newVolume,
-  audioCtx.currentTime,
-  <span class="num">0.01</span>          <span class="cm">// time constant (seconds)</span>
-);
-
-<span class="cm">// Or simply for non-critical changes:</span>
-gain.gain.value = <span class="num">0.5</span>;</code></pre>
-
-          <pre id="code3"><code><span class="cm">// Step 3 — BiquadFilterNode</span>
-
-<span class="kw">const</span> filter = audioCtx.<span class="fn">createBiquadFilter</span>();
-
-filter.type            = <span class="str">'lowpass'</span>; <span class="cm">// lowpass | highpass | bandpass...</span>
-filter.frequency.value = <span class="num">2000</span>;    <span class="cm">// cutoff frequency in Hz</span>
-filter.Q.value         = <span class="num">1</span>;        <span class="cm">// resonance (bandwidth shape)</span>
-
-<span class="cm">// Wire: oscillator → gain → filter → speakers</span>
+<span class="cm">// osc → gain → filter → speakers</span>
 osc.<span class="fn">connect</span>(gain);
 gain.<span class="fn">connect</span>(filter);
 filter.<span class="fn">connect</span>(audioCtx.destination);
 
-<span class="cm">// Change in real time — just update the values</span>
+<span class="cm">// Update live — values take effect immediately</span>
 filter.frequency.value = <span class="num">500</span>;
-filter.type            = <span class="str">'highpass'</span>;</code></pre>
+filter.type = <span class="str">'highpass'</span>;</code></pre>
+        </div>
+      </div>
+    </div>
 
-          <pre id="code4"><code><span class="cm">// Step 4 — AnalyserNode + Canvas visualizer</span>
+    <!-- STEP 4: AnalyserNode + Canvas -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">4</div>
+        <h3>AnalyserNode → Canvas — real-time visualizer</h3>
+      </div>
+      <div class="step-body">
+        <div>
+          <p class="step-desc">
+            The <code class="text-mono">AnalyserNode</code> exposes audio as raw data —
+            time-domain (waveform) or frequency-domain (FFT). Drawn on a Canvas each frame.
+          </p>
+          <canvas id="vizCanvas" class="visualizer-canvas" width="600" height="130"></canvas>
+          <div class="viz-btn-row">
+            <button class="btn" id="btnVizWave" onclick="setVizMode('wave')" disabled>Waveform</button>
+            <button class="btn btn-primary" id="btnVizFreq" onclick="setVizMode('freq')" disabled>Spectrum (FFT)</button>
+          </div>
+        </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>AnalyserNode</span><span>JS</span></div>
+          <pre><code><span class="kw">const</span> analyser = audioCtx.<span class="fn">createAnalyser</span>();
+analyser.fftSize = <span class="num">2048</span>; <span class="cm">// power of 2</span>
 
-<span class="kw">const</span> analyser = audioCtx.<span class="fn">createAnalyser</span>();
-analyser.fftSize = <span class="num">2048</span>;  <span class="cm">// must be power of 2</span>
-
-<span class="cm">// Wire analyser into the chain (pass-through)</span>
 filter.<span class="fn">connect</span>(analyser);
 analyser.<span class="fn">connect</span>(audioCtx.destination);
 
-<span class="cm">// Frequency-domain (FFT spectrum)</span>
+<span class="cm">// FFT spectrum</span>
 <span class="kw">const</span> freqData = <span class="kw">new</span> <span class="fn">Uint8Array</span>(analyser.frequencyBinCount);
 analyser.<span class="fn">getByteFrequencyData</span>(freqData);
 
-<span class="cm">// Time-domain (waveform)</span>
+<span class="cm">// Waveform</span>
 <span class="kw">const</span> timeData = <span class="kw">new</span> <span class="fn">Uint8Array</span>(analyser.fftSize);
 analyser.<span class="fn">getByteTimeDomainData</span>(timeData);
 
-<span class="cm">// Draw loop — runs until we set animating = false</span>
 <span class="kw">let</span> animating = <span class="kw">true</span>;
 <span class="kw">function</span> <span class="fn">drawLoop</span>() {
   <span class="kw">if</span> (!animating) <span class="kw">return</span>;
@@ -276,11 +234,31 @@ analyser.<span class="fn">getByteTimeDomainData</span>(timeData);
   analyser.<span class="fn">getByteFrequencyData</span>(freqData);
   <span class="cm">// ... draw bars on canvas ...</span>
 }</code></pre>
+        </div>
+      </div>
+    </div>
 
-          <pre id="code5"><code><span class="cm">// Step 5 — Full signal chain</span>
-
-<span class="cm">// .connect() returns the destination node,</span>
-<span class="cm">// so you can chain calls:</span>
+    <!-- STEP 5: Full chain -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">5</div>
+        <h3>Full signal chain</h3>
+      </div>
+      <div class="step-body">
+        <div>
+          <p class="step-desc">
+            Wire all nodes with chained <code class="text-mono">.connect()</code> calls.
+            Watch the signal flow diagram above light up as audio passes through each node.
+          </p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnChain" onclick="runFullChain()" disabled>Run full chain</button>
+            <button class="btn btn-danger"  id="btnStopChain" onclick="stopOsc()" style="display:none">Stop</button>
+          </div>
+        </div>
+        <div class="code-panel">
+          <div class="code-panel-header"><span>Full chain</span><span>JS</span></div>
+          <pre><code><span class="cm">// .connect() returns the destination node</span>
+<span class="cm">// so calls can be chained:</span>
 osc
   .<span class="fn">connect</span>(gain)
   .<span class="fn">connect</span>(filter)
@@ -289,47 +267,44 @@ osc
 
 osc.<span class="fn">start</span>();
 
-<span class="cm">// To stop cleanly:</span>
-osc.<span class="fn">stop</span>();        <span class="cm">// fires osc.onended</span>
+<span class="cm">// Stop cleanly:</span>
+osc.<span class="fn">stop</span>();  <span class="cm">// fires osc.onended</span>
 
 osc.onended = () => {
   osc.<span class="fn">disconnect</span>();
-  <span class="cm">// stop the visualizer draw loop</span>
-  animating = <span class="kw">false</span>;
+  animating = <span class="kw">false</span>; <span class="cm">// stops visualizer</span>
 };</code></pre>
         </div>
       </div>
     </div>
+
+    <!-- Connection callouts -->
+    <div class="connection-banner">
+      <span class="connection-badge">Connected to MediaStream</span>
+      <span>
+        The oscillator can feed a <code class="text-mono">MediaStreamDestination</code> —
+        see <a href="mediastream.html">MediaStream demo step 3 →</a>
+      </span>
+    </div>
+    <div class="connection-banner mt-2">
+      <span class="connection-badge">Connected to Canvas</span>
+      <span>
+        The AnalyserNode feeds the Canvas visualizer above —
+        the same Canvas API from <a href="canvas.html">Canvas demo →</a>
+      </span>
+    </div>
   </div>
 
   <script>
-    // ─────────────────────────────────────────────
-    // AudioContext state
-    // ─────────────────────────────────────────────
-
-    let audioCtx    = null;
-    let gainNode    = null;
-    let filterNode  = null;
+    let audioCtx     = null;
+    let gainNode     = null;
+    let filterNode   = null;
     let analyserNode = null;
-    let currentOsc  = null;   // one-shot — new node per play
-    let animating   = false;
-    let vizMode     = 'freq'; // 'wave' | 'freq'
-    let freqData    = null;
-    let timeData    = null;
-
-    // Code panel / signal flow
-    function showCode(n) {
-      document.querySelectorAll('.code-panel pre').forEach(p => p.classList.remove('active'));
-      document.getElementById('code' + n).classList.add('active');
-      document.getElementById('code-label').textContent = 'Step ' + n;
-    }
-
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) showCode(e.target.id.replace('step', ''));
-      });
-    }, { threshold: 0.4 });
-    document.querySelectorAll('.step').forEach(s => observer.observe(s));
+    let currentOsc   = null;
+    let animating    = false;
+    let vizMode      = 'freq';
+    let freqData     = null;
+    let timeData     = null;
 
     function setSFActive(ids) {
       document.querySelectorAll('.sf-node').forEach(n => n.classList.remove('active'));
@@ -339,28 +314,22 @@ osc.onended = () => {
       });
     }
 
-    // ─────────────────────────────────────────────
-    // Step 1: init AudioContext
-    // ─────────────────────────────────────────────
-
     async function initContext() {
       if (audioCtx) return;
 
       audioCtx = new AudioContext();
       await audioCtx.resume();
 
-      // Create the node graph (once, reused across oscillators)
       gainNode     = audioCtx.createGain();
       filterNode   = audioCtx.createBiquadFilter();
       analyserNode = audioCtx.createAnalyser();
       analyserNode.fftSize = 2048;
 
-      gainNode.gain.value         = 0.7;
-      filterNode.type             = 'lowpass';
-      filterNode.frequency.value  = 2000;
-      filterNode.Q.value          = 1;
+      gainNode.gain.value        = 0.7;
+      filterNode.type            = 'lowpass';
+      filterNode.frequency.value = 2000;
+      filterNode.Q.value         = 1;
 
-      // Full chain: osc → gain → filter → analyser → destination
       gainNode.connect(filterNode);
       filterNode.connect(analyserNode);
       analyserNode.connect(audioCtx.destination);
@@ -368,7 +337,6 @@ osc.onended = () => {
       freqData = new Uint8Array(analyserNode.frequencyBinCount);
       timeData = new Uint8Array(analyserNode.fftSize);
 
-      // Enable controls
       ['freqSlider','waveform','gainSlider','cutoffSlider','qSlider','filterType'].forEach(id => {
         document.getElementById(id).disabled = false;
       });
@@ -380,17 +348,12 @@ osc.onended = () => {
       const st = document.getElementById('ctxState');
       st.textContent = 'running';
       st.className = 'state-badge active';
-
       setSFActive(['dest']);
     }
 
-    // ─────────────────────────────────────────────
-    // Step 1: oscillator play / stop
-    // ─────────────────────────────────────────────
-
     function playOsc() {
       if (!audioCtx) return;
-      stopOsc(); // stop any previous oscillator
+      stopOsc();
 
       const osc = audioCtx.createOscillator();
       osc.type = document.getElementById('waveform').value;
@@ -398,8 +361,6 @@ osc.onended = () => {
         parseFloat(document.getElementById('freqSlider').value),
         audioCtx.currentTime
       );
-
-      // Connect oscillator into the existing chain
       osc.connect(gainNode);
       osc.start();
       currentOsc = osc;
@@ -425,20 +386,14 @@ osc.onended = () => {
       setSFActive([]);
       document.getElementById('btnPlay').disabled = false;
       document.getElementById('btnStop').disabled = true;
+      document.getElementById('btnStopChain').style.display = 'none';
+      document.getElementById('btnChain').style.display = 'inline-flex';
     }
-
-    // ─────────────────────────────────────────────
-    // Step 2: gain
-    // ─────────────────────────────────────────────
 
     function updateGain(val) {
       document.getElementById('gainVal').textContent = parseFloat(val).toFixed(2);
       if (gainNode) gainNode.gain.setTargetAtTime(parseFloat(val), audioCtx.currentTime, 0.01);
     }
-
-    // ─────────────────────────────────────────────
-    // Step 3: filter
-    // ─────────────────────────────────────────────
 
     function updateFilter() {
       if (filterNode) filterNode.type = document.getElementById('filterType').value;
@@ -461,10 +416,6 @@ osc.onended = () => {
       }
     }
 
-    // ─────────────────────────────────────────────
-    // Step 4: AnalyserNode + Canvas visualizer
-    // ─────────────────────────────────────────────
-
     function setVizMode(mode) {
       vizMode = mode;
       document.getElementById('btnVizWave').className = mode === 'wave' ? 'btn btn-primary' : 'btn';
@@ -483,8 +434,7 @@ osc.onended = () => {
 
       const canvas = document.getElementById('vizCanvas');
       const ctx    = canvas.getContext('2d');
-      const W = canvas.width;
-      const H = canvas.height;
+      const W = canvas.width, H = canvas.height;
 
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
@@ -492,21 +442,18 @@ osc.onended = () => {
       if (!analyserNode) return;
 
       if (vizMode === 'freq') {
-        // ── Frequency spectrum (FFT bars) ──
         analyserNode.getByteFrequencyData(freqData);
         const barW = W / freqData.length * 2.5;
         let x = 0;
         for (let i = 0; i < freqData.length; i++) {
           const barH = (freqData[i] / 255) * H;
-          // Color: purple → green gradient by frequency
-          const hue = 260 + (i / freqData.length) * 80;
+          const hue  = 260 + (i / freqData.length) * 80;
           ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
           ctx.fillRect(x, H - barH, barW - 1, barH);
           x += barW;
           if (x > W) break;
         }
       } else {
-        // ── Time-domain waveform ──
         analyserNode.getByteTimeDomainData(timeData);
         ctx.strokeStyle = '#7c6af7';
         ctx.lineWidth   = 2;
@@ -516,26 +463,17 @@ osc.onended = () => {
         for (let i = 0; i < timeData.length; i++) {
           const v = timeData[i] / 128.0;
           const y = (v * H) / 2;
-          if (i === 0) ctx.moveTo(x, y);
-          else         ctx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           x += sliceW;
         }
         ctx.stroke();
       }
 
-      // Mark analyser + canvas active in signal flow
       setSFActive(['osc', 'gain', 'filter', 'analyser', 'dest', 'canvas']);
     }
 
-    // ─────────────────────────────────────────────
-    // Step 5: Full chain demo
-    // ─────────────────────────────────────────────
-
     function runFullChain() {
       if (!audioCtx) return;
-      showCode(5);
-
-      // Animate signal flow diagram lighting up in sequence
       const steps = [
         ['osc'],
         ['osc', 'gain'],
@@ -543,26 +481,16 @@ osc.onended = () => {
         ['osc', 'gain', 'filter', 'analyser', 'canvas'],
         ['osc', 'gain', 'filter', 'analyser', 'canvas', 'dest'],
       ];
-
       let i = 0;
       const interval = setInterval(() => {
-        setSFActive(steps[i]);
-        i++;
+        setSFActive(steps[i++]);
         if (i >= steps.length) clearInterval(interval);
       }, 400);
 
-      // Also start playing
       playOsc();
-
       document.getElementById('btnChain').style.display = 'none';
       document.getElementById('btnStopChain').style.display = 'inline-flex';
     }
-
-    // Reset stop chain button
-    document.getElementById('btnStopChain').addEventListener('click', () => {
-      document.getElementById('btnStopChain').style.display = 'none';
-      document.getElementById('btnChain').style.display = 'inline-flex';
-    });
   </script>
 </body>
 </html>
