@@ -1,0 +1,377 @@
+<script setup lang="ts">
+import { ref, onUnmounted } from 'vue'
+import DemoStep from '../components/DemoStep.vue'
+import CodePanel from '../components/CodePanel.vue'
+
+// ─── SVG source used by steps 1 & 4 ───────────────────────────────────────────
+
+const SVG_SRC = `data:image/svg+xml,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%"   stop-color="#7c6af7"/>
+        <stop offset="100%" stop-color="#34d399"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="200" fill="url(#g)" rx="12"/>
+    <circle cx="150" cy="80"  r="40" fill="white" opacity="0.3"/>
+    <circle cx="80"  cy="150" r="25" fill="white" opacity="0.2"/>
+    <circle cx="220" cy="140" r="30" fill="white" opacity="0.2"/>
+    <text x="150" y="175" text-anchor="middle" font-family="sans-serif"
+          font-size="18" font-weight="bold" fill="white" opacity="0.9">drawImage</text>
+  </svg>
+`)}`
+
+// ─── Template refs ─────────────────────────────────────────────────────────────
+
+const c1 = ref<HTMLCanvasElement | null>(null)
+const c2 = ref<HTMLCanvasElement | null>(null)
+const c3 = ref<HTMLCanvasElement | null>(null)
+const c4 = ref<HTMLCanvasElement | null>(null)
+
+function clearCanvas(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return
+  canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
+}
+
+// ─── Step 1 — drawImage ────────────────────────────────────────────────────────
+
+function demo1DrawImage() {
+  const canvas = c1.value
+  if (!canvas) return
+  clearCanvas(canvas)
+  const ctx = canvas.getContext('2d')!
+  const img = new Image()
+  img.src = SVG_SRC
+  img.onload = () => { ctx.drawImage(img, 50, 25, 300, 200) }
+}
+
+// ─── Step 2 — save / restore ──────────────────────────────────────────────────
+
+const stackDepth = ref(0)
+const colors = ['#7c6af7', '#34d399', '#fbbf24', '#f87171', '#7dd3fc']
+
+function demo2Save() {
+  c2.value?.getContext('2d')?.save()
+  stackDepth.value++
+}
+
+function demo2Restore() {
+  if (stackDepth.value > 0) {
+    c2.value?.getContext('2d')?.restore()
+    stackDepth.value--
+  }
+}
+
+function demo2Translate() { c2.value?.getContext('2d')?.translate(30, 20) }
+function demo2Rotate()    { c2.value?.getContext('2d')?.rotate(Math.PI / 12) }
+
+function demo2DrawRect() {
+  const ctx = c2.value?.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = colors[stackDepth.value % colors.length]!
+  ctx.fillRect(80, 80, 100, 60)
+}
+
+function demo2Clear() {
+  clearCanvas(c2.value)
+  stackDepth.value = 0
+}
+
+// ─── Step 3 — clip ────────────────────────────────────────────────────────────
+
+const clipSaved = ref(false)
+
+function demo3ShowPath() {
+  const canvas = c3.value
+  if (!canvas) return
+  clearCanvas(canvas)
+  clipSaved.value = false
+  const ctx = canvas.getContext('2d')!
+  ctx.strokeStyle = '#7c6af7'
+  ctx.lineWidth = 2
+  ctx.setLineDash([6, 4])
+  ctx.beginPath()
+  ctx.arc(200, 150, 120, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.fillStyle = 'rgba(124,106,247,0.08)'
+  ctx.fill()
+}
+
+function demo3Clip() {
+  if (clipSaved.value) return
+  const canvas = c3.value
+  if (!canvas) return
+  clearCanvas(canvas)
+  clipSaved.value = true
+  const ctx = canvas.getContext('2d')!
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(200, 150, 120, 0, Math.PI * 2)
+  ctx.clip()
+}
+
+function demo3DrawInside() {
+  if (!clipSaved.value) demo3Clip()
+  const ctx = c3.value?.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = '#7c6af7'
+  ctx.fillRect(0, 0, 400, 300)
+  ctx.fillStyle = '#a78bfa'
+  ctx.fillRect(80, 60, 240, 180)
+  ctx.fillStyle = '#34d399'
+  ctx.beginPath()
+  ctx.arc(200, 150, 70, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+function demo3Restore() {
+  if (!clipSaved.value) return
+  const ctx = c3.value?.getContext('2d')
+  if (!ctx) return
+  ctx.restore()
+  clipSaved.value = false
+  ctx.fillStyle = 'rgba(255,255,255,0.06)'
+  ctx.fillRect(0, 0, 400, 300)
+  ctx.strokeStyle = '#34d399'
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([4, 4])
+  ctx.strokeRect(10, 10, 380, 280)
+  ctx.setLineDash([])
+}
+
+function demo3Clear() {
+  clearCanvas(c3.value)
+  clipSaved.value = false
+}
+
+// ─── Step 4 — combined animation ──────────────────────────────────────────────
+
+const running4 = ref(false)
+let angle4 = 0
+let rafId4 = 0
+const img4 = new Image()
+img4.src = SVG_SRC
+
+function demo4Toggle() {
+  if (running4.value) {
+    cancelAnimationFrame(rafId4)
+    running4.value = false
+  } else {
+    running4.value = true
+    demo4Frame()
+  }
+}
+
+function demo4Frame() {
+  if (!running4.value) return
+  const canvas = c4.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')!
+  const cx = canvas.width / 2
+  const cy = canvas.height / 2
+  const r = 120
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.translate(cx, cy)
+  ctx.rotate(angle4)
+  ctx.drawImage(img4, -r, -r, r * 2, r * 2)
+  ctx.restore()
+
+  ctx.strokeStyle = 'rgba(124,106,247,0.5)'
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.arc(cx, cy, r + 4, 0, Math.PI * 2)
+  ctx.stroke()
+
+  angle4 += 0.012
+  rafId4 = requestAnimationFrame(demo4Frame)
+}
+
+onUnmounted(() => {
+  cancelAnimationFrame(rafId4)
+})
+
+// ─── Code panel content ───────────────────────────────────────────────────────
+
+const code1 = `<span class="cm">// drawImage(source, x, y, w, h)</span>
+<span class="kw">const</span> ctx = canvas.getContext(<span class="str">'2d'</span>);
+
+<span class="kw">const</span> img = <span class="kw">new</span> <span class="fn">Image</span>();
+img.src = <span class="str">'...'</span>;
+img.<span class="fn">onload</span> = () => {
+  ctx.<span class="fn">drawImage</span>(img, <span class="num">50</span>, <span class="num">25</span>, <span class="num">300</span>, <span class="num">200</span>);
+};
+
+<span class="cm">// Also accepts:</span>
+<span class="cm">// HTMLCanvasElement</span>
+<span class="cm">// HTMLVideoElement ← see MediaStream demo</span>
+<span class="cm">// ImageBitmap, OffscreenCanvas</span>`
+
+const code2 = `<span class="cm">// save() pushes current state:</span>
+<span class="cm">//  - transform matrix</span>
+<span class="cm">//  - clipping region</span>
+<span class="cm">//  - strokeStyle, fillStyle...</span>
+ctx.<span class="fn">save</span>();        <span class="cm">// depth: 1</span>
+
+ctx.<span class="fn">translate</span>(<span class="num">100</span>, <span class="num">50</span>);
+ctx.<span class="fn">rotate</span>(Math.PI / <span class="num">6</span>);
+ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">80</span>, <span class="num">40</span>);
+
+ctx.<span class="fn">restore</span>();      <span class="cm">// depth: 0</span>
+
+<span class="cm">// Back to original origin —</span>
+<span class="cm">// translate + rotate are gone</span>
+ctx.<span class="fn">fillRect</span>(<span class="num">200</span>, <span class="num">100</span>, <span class="num">80</span>, <span class="num">40</span>);`
+
+const code3 = `<span class="cm">// Save before clipping</span>
+ctx.<span class="fn">save</span>();
+
+<span class="cm">// Define the clip path</span>
+ctx.<span class="fn">beginPath</span>();
+ctx.<span class="fn">arc</span>(<span class="num">200</span>, <span class="num">150</span>, <span class="num">120</span>, <span class="num">0</span>, Math.PI * <span class="num">2</span>);
+
+<span class="cm">// Subsequent drawing is masked here</span>
+ctx.<span class="fn">clip</span>();
+
+ctx.fillStyle = <span class="str">'#7c6af7'</span>;
+ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">400</span>, <span class="num">300</span>);
+
+<span class="cm">// restore() removes the clip region</span>
+ctx.<span class="fn">restore</span>();
+
+<span class="cm">// This now fills the whole canvas</span>
+ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="num">400</span>, <span class="num">300</span>);`
+
+const code4 = `<span class="kw">function</span> <span class="fn">draw</span>(img) {
+  <span class="kw">const</span> cx = canvas.width / <span class="num">2</span>;
+  <span class="kw">const</span> cy = canvas.height / <span class="num">2</span>;
+  <span class="kw">const</span> r  = <span class="num">120</span>;
+
+  ctx.<span class="fn">clearRect</span>(<span class="num">0</span>, <span class="num">0</span>, canvas.width, canvas.height);
+
+  <span class="cm">// save() — clip + rotate stay contained</span>
+  ctx.<span class="fn">save</span>();
+
+  <span class="cm">// 1. Circular clip path</span>
+  ctx.<span class="fn">beginPath</span>();
+  ctx.<span class="fn">arc</span>(cx, cy, r, <span class="num">0</span>, Math.PI * <span class="num">2</span>);
+  ctx.<span class="fn">clip</span>();
+
+  <span class="cm">// 2. Move to center, apply rotation</span>
+  ctx.<span class="fn">translate</span>(cx, cy);
+  ctx.<span class="fn">rotate</span>(angle);
+
+  <span class="cm">// 3. Draw image centered on rotated origin</span>
+  ctx.<span class="fn">drawImage</span>(img, -r, -r, r * <span class="num">2</span>, r * <span class="num">2</span>);
+
+  <span class="cm">// restore() — clip and transform gone</span>
+  ctx.<span class="fn">restore</span>();
+
+  angle += <span class="num">0.012</span>;
+  <span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));
+}`
+</script>
+
+<template>
+  <div class="page">
+    <h1 style="margin-bottom:0.25rem">Canvas API</h1>
+    <p style="margin-bottom:2rem">
+      The 2D rendering context — drawing images, managing state with a stack, and clipping regions.
+    </p>
+
+    <!-- Step 1 — drawImage -->
+    <DemoStep :number="1" title="drawImage">
+      <p class="step-desc">
+        <code class="text-mono">ctx.drawImage()</code> accepts an
+        <code class="text-mono">HTMLImageElement</code>,
+        <code class="text-mono">HTMLCanvasElement</code>, or
+        <code class="text-mono">HTMLVideoElement</code> (which we'll use in the MediaStream demo).
+      </p>
+      <canvas ref="c1" width="400" height="250"></canvas>
+      <div class="btn-row">
+        <button class="btn btn-primary" @click="demo1DrawImage">Draw image</button>
+        <button class="btn" @click="clearCanvas(c1)">Clear</button>
+      </div>
+
+      <template #code>
+        <CodePanel title="drawImage" :code="code1" />
+      </template>
+    </DemoStep>
+
+    <!-- Step 2 — save / restore -->
+    <DemoStep :number="2" title="save / restore — the state stack">
+      <p class="step-desc">
+        <code class="text-mono">ctx.save()</code> pushes the current state (transforms, styles, clip) onto a stack.
+        <code class="text-mono">ctx.restore()</code> pops it. Transforms applied inside a save/restore block don't leak out.
+      </p>
+      <canvas ref="c2" width="400" height="250"></canvas>
+      <div class="stack-counter mt-1">Stack depth: <span>{{ stackDepth }}</span></div>
+      <div class="btn-row">
+        <button class="btn btn-green"  @click="demo2Save">save()</button>
+        <button class="btn btn-danger" @click="demo2Restore">restore()</button>
+        <button class="btn" @click="demo2Translate">translate()</button>
+        <button class="btn" @click="demo2Rotate">rotate()</button>
+        <button class="btn" @click="demo2DrawRect">drawRect</button>
+        <button class="btn" @click="demo2Clear">Clear</button>
+      </div>
+
+      <template #code>
+        <CodePanel title="save / restore" :code="code2" />
+      </template>
+    </DemoStep>
+
+    <!-- Step 3 — clip -->
+    <DemoStep :number="3" title="clip — masking with a path">
+      <p class="step-desc">
+        After calling <code class="text-mono">ctx.clip()</code>, all subsequent drawing is masked to the current path.
+        Wrap in <code class="text-mono">save()</code> / <code class="text-mono">restore()</code> to remove the clip.
+      </p>
+      <canvas ref="c3" width="400" height="300"></canvas>
+      <div class="btn-row">
+        <button class="btn" @click="demo3ShowPath">1. Show clip path</button>
+        <button class="btn btn-primary" @click="demo3Clip">2. Apply clip()</button>
+        <button class="btn" @click="demo3DrawInside">3. Draw inside clip</button>
+        <button class="btn btn-danger" @click="demo3Restore">4. restore()</button>
+        <button class="btn" @click="demo3Clear">Clear</button>
+      </div>
+
+      <template #code>
+        <CodePanel title="clip" :code="code3" />
+      </template>
+    </DemoStep>
+
+    <!-- Step 4 — combined animated demo -->
+    <DemoStep :number="4" title="Combined — animated drawImage + clip + save/restore">
+      <p class="step-desc">
+        Putting it all together: an image drawn each frame, clipped to a circle,
+        rotating inside a <code class="text-mono">save()</code>/<code class="text-mono">restore()</code> block.
+      </p>
+      <canvas ref="c4" width="400" height="300"></canvas>
+      <div class="btn-row">
+        <button
+          :class="running4 ? 'btn btn-danger' : 'btn btn-primary'"
+          @click="demo4Toggle"
+        >{{ running4 ? 'Stop animation' : 'Start animation' }}</button>
+      </div>
+
+      <template #code>
+        <CodePanel title="combined" :code="code4" />
+      </template>
+    </DemoStep>
+
+    <div class="connection-banner">
+      <span class="connection-badge">Connected to MediaStream</span>
+      <span>
+        This canvas can become a live video stream via
+        <code class="text-mono">canvas.captureStream(30)</code> —
+        see the <RouterLink to="/mediastream">MediaStream demo →</RouterLink>
+      </span>
+    </div>
+  </div>
+</template>
