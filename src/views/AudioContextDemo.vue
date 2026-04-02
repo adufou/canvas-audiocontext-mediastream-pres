@@ -24,8 +24,9 @@ const freq         = ref(440)
 const gain         = ref(0.7)
 const cutoff       = ref(2000)
 const q            = ref(1)
-const waveform     = ref<OscillatorType | 'buzz'>('sine')
+const waveform     = ref<OscillatorType | 'buzz'>('buzz')
 const filterType   = ref<BiquadFilterType>('lowpass')
+const chainLevel   = ref(1) // 1 = osc→analyser, 2 = +gain, 3 = +filter
 
 // Signal flow: which nodes are lit up
 const activeNodes  = ref<Set<string>>(new Set())
@@ -53,15 +54,48 @@ async function initContext() {
   filterNode.frequency.value = cutoff.value
   filterNode.Q.value         = q.value
 
-  gainNode.connect(filterNode)
-  filterNode.connect(analyserNode)
+  // Only analyser→dest is always wired. The rest is built by rebuildChain.
   analyserNode.connect(audioCtx.destination)
 
   freqData = new Uint8Array(analyserNode.frequencyBinCount)
   timeData = new Uint8Array(analyserNode.fftSize)
 
   ctxStarted.value = true
-  setActive(['dest'])
+  setActive(['analyser', 'dest'])
+}
+
+// ─── Chain routing ────────────────────────────────────────────────────────────
+
+function rebuildChain(level: number) {
+  if (!audioCtx || !gainNode || !filterNode || !analyserNode) return
+
+  // Disconnect everything that can be reconnected
+  gainNode.disconnect()
+  filterNode.disconnect()
+  if (currentOsc) currentOsc.disconnect()
+
+  chainLevel.value = level
+
+  if (!currentOsc) return
+
+  if (level === 1) {
+    currentOsc.connect(analyserNode)
+    setActive(['osc', 'analyser', 'dest'])
+  } else if (level === 2) {
+    currentOsc.connect(gainNode)
+    gainNode.connect(analyserNode)
+    setActive(['osc', 'gain', 'analyser', 'dest'])
+  } else {
+    currentOsc.connect(gainNode)
+    gainNode.connect(filterNode)
+    filterNode.connect(analyserNode)
+    setActive(['osc', 'gain', 'filter', 'analyser', 'dest'])
+  }
+}
+
+function setChainLevel(level: number) {
+  chainLevel.value = level
+  if (isPlaying.value) rebuildChain(level)
 }
 
 // ─── Oscillator ───────────────────────────────────────────────────────────────
@@ -71,7 +105,7 @@ function createBuzzWave(): PeriodicWave {
   const real = new Float32Array(N + 1)
   const imag = new Float32Array(N + 1)
   for (let k = 1; k <= N; k++) {
-    imag[k] = 1 / Math.pow(k, 0.3) // flat-ish rolloff → many visible harmonics
+    imag[k] = 1 / Math.pow(k, 0.3)
   }
   return audioCtx!.createPeriodicWave(real, imag)
 }
@@ -85,14 +119,12 @@ function applyWaveform(osc: OscillatorNode) {
 }
 
 function playOsc() {
-  if (!audioCtx || !gainNode) return
+  if (!audioCtx || !analyserNode) return
   stopOsc()
 
   const osc = audioCtx.createOscillator()
   applyWaveform(osc)
   osc.frequency.setValueAtTime(freq.value, audioCtx.currentTime)
-  osc.connect(gainNode)
-  osc.start()
   currentOsc = osc
 
   osc.onended = () => {
@@ -100,7 +132,8 @@ function playOsc() {
     if (currentOsc === osc) currentOsc = null
   }
 
-  setActive(['osc', 'gain', 'filter', 'analyser', 'dest'])
+  rebuildChain(chainLevel.value)
+  osc.start()
   startVizLoop()
   isPlaying.value = true
 }
@@ -112,7 +145,7 @@ function stopOsc() {
   }
   animating = false
   isPlaying.value = false
-  setActive([])
+  setActive(['analyser', 'dest'])
 }
 
 // ─── Live parameter updates ───────────────────────────────────────────────────
@@ -194,35 +227,47 @@ function drawVizLoop() {
     }
     ctx.stroke()
   }
-
-  setActive(['osc', 'gain', 'filter', 'analyser', 'dest', 'canvas'])
 }
 
 function setVizMode(mode: 'freq' | 'wave') {
   vizMode.value = mode
 }
 
-// ─── Full chain animation ─────────────────────────────────────────────────────
+// ─── Step 5 — animated full chain ────────────────────────────────────────────
 
 const chainRunning = ref(false)
 
-function runFullChain() {
+async function runFullChain() {
   if (!audioCtx) return
   chainRunning.value = true
-  const steps = [
-    ['osc'],
-    ['osc', 'gain'],
-    ['osc', 'gain', 'filter'],
-    ['osc', 'gain', 'filter', 'analyser', 'canvas'],
-    ['osc', 'gain', 'filter', 'analyser', 'canvas', 'dest'],
-  ]
-  let i = 0
-  const interval = setInterval(() => {
-    const step = steps[i++]
-    if (step) setActive(step)
-    if (i >= steps.length) clearInterval(interval)
-  }, 400)
 
+  // Set known-good parameters for the demo
+  freq.value    = 440
+  gain.value    = 0.5
+  cutoff.value  = 1800
+  filterType.value = 'lowpass'
+  if (gainNode) gainNode.gain.value = gain.value
+  if (filterNode) { filterNode.frequency.value = cutoff.value; filterNode.type = filterType.value }
+
+  // Start from scratch at level 1
+  chainLevel.value = 1
+  if (isPlaying.value) stopOsc()
+  playOsc()
+
+  await new Promise(r => setTimeout(r, 1500))
+  if (!chainRunning.value) return
+  rebuildChain(2)
+
+  await new Promise(r => setTimeout(r, 1500))
+  if (!chainRunning.value) return
+  rebuildChain(3)
+
+  await new Promise(r => setTimeout(r, 500))
+  chainRunning.value = false
+}
+
+function playFromStep1() {
+  chainLevel.value = 1
   playOsc()
 }
 
@@ -250,17 +295,15 @@ const code1 = `<span class="cm">// Must be inside a user-gesture handler</span>
 osc.type = <span class="str">'sine'</span>; <span class="cm">// sine|square|triangle|sawtooth</span>
 osc.frequency.<span class="fn">setValueAtTime</span>(<span class="num">440</span>, audioCtx.currentTime);
 
+<span class="cm">// Direct to destination — no other nodes yet</span>
 osc.<span class="fn">connect</span>(audioCtx.destination);
-osc.<span class="fn">start</span>();
-
-<span class="cm">// To stop:</span>
-osc.<span class="fn">stop</span>();
-osc.<span class="fn">disconnect</span>();`
+osc.<span class="fn">start</span>();`
 
 const code2 = `<span class="kw">const</span> gain = audioCtx.<span class="fn">createGain</span>();
 gain.gain.value = <span class="num">0.7</span>; <span class="cm">// 0 = silence, 1 = full</span>
 
-<span class="cm">// osc → gain → speakers</span>
+<span class="cm">// Insert gain between osc and destination:</span>
+<span class="cm">// osc → gain → dest</span>
 osc.<span class="fn">connect</span>(gain);
 gain.<span class="fn">connect</span>(audioCtx.destination);
 
@@ -269,22 +312,19 @@ gain.gain.<span class="fn">setTargetAtTime</span>(
   newVolume,
   audioCtx.currentTime,
   <span class="num">0.01</span>  <span class="cm">// time constant (s)</span>
-);
-
-<span class="cm">// Or direct (fine for small changes):</span>
-gain.gain.value = <span class="num">0.5</span>;`
+);`
 
 const code3 = `<span class="kw">const</span> filter = audioCtx.<span class="fn">createBiquadFilter</span>();
 filter.type            = <span class="str">'lowpass'</span>;
 filter.frequency.value = <span class="num">2000</span>; <span class="cm">// cutoff in Hz</span>
 filter.Q.value         = <span class="num">1</span>;    <span class="cm">// resonance</span>
 
-<span class="cm">// osc → gain → filter → speakers</span>
-osc.<span class="fn">connect</span>(gain);
+<span class="cm">// Insert filter between gain and destination:</span>
+<span class="cm">// osc → gain → filter → dest</span>
 gain.<span class="fn">connect</span>(filter);
 filter.<span class="fn">connect</span>(audioCtx.destination);
 
-<span class="cm">// Update live — values take effect immediately</span>
+<span class="cm">// Update live:</span>
 filter.frequency.value = <span class="num">500</span>;
 filter.type = <span class="str">'highpass'</span>;`
 
@@ -302,9 +342,7 @@ analyser.<span class="fn">getByteFrequencyData</span>(freqData);
 <span class="kw">const</span> timeData = <span class="kw">new</span> <span class="fn">Uint8Array</span>(analyser.fftSize);
 analyser.<span class="fn">getByteTimeDomainData</span>(timeData);
 
-<span class="kw">let</span> animating = <span class="kw">true</span>;
 <span class="kw">function</span> <span class="fn">drawLoop</span>() {
-  <span class="kw">if</span> (!animating) <span class="kw">return</span>;
   <span class="fn">requestAnimationFrame</span>(drawLoop);
   analyser.<span class="fn">getByteFrequencyData</span>(freqData);
   <span class="cm">// ... draw bars on canvas ...</span>
@@ -325,7 +363,6 @@ osc.<span class="fn">stop</span>();  <span class="cm">// fires osc.onended</span
 
 osc.onended = () => {
   osc.<span class="fn">disconnect</span>();
-  animating = <span class="kw">false</span>; <span class="cm">// stops visualizer</span>
 };`
 </script>
 
@@ -336,8 +373,8 @@ osc.onended = () => {
       The Web Audio API models audio as a graph of nodes — each node transforms or routes audio signal.
     </p>
 
-    <!-- Signal flow diagram -->
-    <div class="signal-flow" style="flex-wrap:nowrap;overflow-x:auto">
+    <!-- Signal flow diagram — sticky -->
+    <div class="signal-flow" style="flex-wrap:nowrap;overflow-x:auto;position:sticky;top:48px;z-index:10;background:var(--surface)">
       <div class="sf-node" :class="{ active: activeNodes.has('osc') }">OscillatorNode</div>
       <span class="sf-arrow">→</span>
       <div class="sf-node" :class="{ active: activeNodes.has('gain') }">GainNode</div>
@@ -357,7 +394,7 @@ osc.onended = () => {
       <p class="step-desc">
         Browsers require a user gesture before any audio can play.
         Click <strong>Start AudioContext</strong> first — this unlocks the audio system.
-        OscillatorNodes are <em>one-shot</em>: a new node is created on each Play click.
+        At this stage the oscillator connects <em>directly</em> to the destination — no other nodes yet.
       </p>
       <div class="btn-row">
         <button class="btn btn-primary" :disabled="ctxStarted" @click="initContext">Start AudioContext</button>
@@ -383,7 +420,7 @@ osc.onended = () => {
         </label>
       </div>
       <div class="btn-row mt-2">
-        <button class="btn btn-green"  :disabled="!ctxStarted || isPlaying"  @click="playOsc">▶ Play</button>
+        <button class="btn btn-green"  :disabled="!ctxStarted || isPlaying"  @click="playFromStep1">▶ Play</button>
         <button class="btn btn-danger" :disabled="!ctxStarted || !isPlaying" @click="stopOsc">■ Stop</button>
       </div>
 
@@ -396,13 +433,19 @@ osc.onended = () => {
     <DemoStep :number="2" title="GainNode — volume control">
       <p class="step-desc">
         A <code class="text-mono">GainNode</code> multiplies the signal by its
-        <code class="text-mono">gain.value</code>. Audio parameters can be automated over time
-        with <code class="text-mono">.setTargetAtTime()</code> to avoid clicks and pops.
+        <code class="text-mono">gain.value</code>. Click <strong>Add GainNode</strong> to insert it
+        between the oscillator and the destination.
       </p>
-      <div class="control-row">
+      <div class="btn-row">
+        <button class="btn" :class="{ 'btn-primary': chainLevel >= 2 }"
+                :disabled="!ctxStarted" @click="setChainLevel(2)">
+          {{ chainLevel >= 2 ? '✓ GainNode added' : 'Add GainNode to chain' }}
+        </button>
+      </div>
+      <div class="control-row mt-2">
         <label>
           Volume: {{ gain.toFixed(2) }}
-          <input type="range" min="0" max="1" step="0.01" :disabled="!ctxStarted"
+          <input type="range" min="0" max="1" step="0.01" :disabled="!ctxStarted || chainLevel < 2"
                  v-model.number="gain" @input="onGainChange">
         </label>
       </div>
@@ -415,13 +458,20 @@ osc.onended = () => {
     <!-- Step 3 — BiquadFilterNode -->
     <DemoStep :number="3" title="BiquadFilterNode — EQ / filtering">
       <p class="step-desc">
-        Filters shape the frequency spectrum. Try <em>lowpass</em> with the <em>buzz</em> waveform —
+        Filters shape the frequency spectrum. Click <strong>Add Filter</strong> to insert it after the gain node.
+        Try <em>lowpass</em> with the <em>buzz</em> waveform —
         it has 40 harmonics, so sweeping the cutoff visibly carves through the FFT.
       </p>
-      <div class="control-row">
+      <div class="btn-row">
+        <button class="btn" :class="{ 'btn-primary': chainLevel >= 3 }"
+                :disabled="!ctxStarted" @click="setChainLevel(3)">
+          {{ chainLevel >= 3 ? '✓ Filter added' : 'Add Filter to chain' }}
+        </button>
+      </div>
+      <div class="control-row mt-2">
         <label>
           Filter type
-          <select :disabled="!ctxStarted" v-model="filterType" @change="onFilterTypeChange">
+          <select :disabled="!ctxStarted || chainLevel < 3" v-model="filterType" @change="onFilterTypeChange">
             <option value="lowpass">lowpass</option>
             <option value="highpass">highpass</option>
             <option value="bandpass">bandpass</option>
@@ -431,12 +481,12 @@ osc.onended = () => {
         </label>
         <label>
           Cutoff: {{ Math.round(cutoff) }} Hz
-          <input type="range" min="20" max="20000" :disabled="!ctxStarted"
+          <input type="range" min="20" max="20000" :disabled="!ctxStarted || chainLevel < 3"
                  v-model.number="cutoff" @input="onCutoffChange">
         </label>
         <label>
           Q: {{ q.toFixed(1) }}
-          <input type="range" min="0.1" max="20" step="0.1" :disabled="!ctxStarted"
+          <input type="range" min="0.1" max="20" step="0.1" :disabled="!ctxStarted || chainLevel < 3"
                  v-model.number="q" @input="onQChange">
         </label>
       </div>
@@ -451,6 +501,7 @@ osc.onended = () => {
       <p class="step-desc">
         The <code class="text-mono">AnalyserNode</code> exposes audio as raw data —
         time-domain (waveform) or frequency-domain (FFT). Drawn on a Canvas each frame.
+        It is always wired at the end of the chain.
       </p>
       <canvas ref="vizCanvas" style="width:100%;height:130px" width="600" height="130"></canvas>
       <div class="btn-row" style="margin-top:0.5rem">
@@ -465,17 +516,19 @@ osc.onended = () => {
       </template>
     </DemoStep>
 
-    <!-- Step 5 — Full chain -->
-    <DemoStep :number="5" title="Full signal chain">
+    <!-- Step 5 — Full chain animation -->
+    <DemoStep :number="5" title="Full signal chain — animated">
       <p class="step-desc">
-        Wire all nodes with chained <code class="text-mono">.connect()</code> calls.
-        Watch the signal flow diagram above light up as audio passes through each node.
+        Watch the chain build itself node by node. The oscillator starts connected
+        directly to the destination, then a <code class="text-mono">GainNode</code> is inserted,
+        then a <code class="text-mono">BiquadFilterNode</code> — each step ~1.5 s apart.
+        Watch the signal flow diagram above.
       </p>
       <div class="btn-row">
         <button v-if="!chainRunning" class="btn btn-primary" :disabled="!ctxStarted" @click="runFullChain">
-          Run full chain
+          ▶ Run animation
         </button>
-        <button v-else class="btn btn-danger" @click="stopChain">Stop</button>
+        <button v-else class="btn btn-danger" @click="stopChain">■ Stop</button>
       </div>
 
       <template #code>
