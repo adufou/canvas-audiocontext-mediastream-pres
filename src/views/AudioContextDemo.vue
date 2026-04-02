@@ -24,7 +24,7 @@ const freq         = ref(440)
 const gain         = ref(0.7)
 const cutoff       = ref(2000)
 const q            = ref(1)
-const waveform     = ref<OscillatorType>('sine')
+const waveform     = ref<OscillatorType | 'buzz'>('sine')
 const filterType   = ref<BiquadFilterType>('lowpass')
 
 // Signal flow: which nodes are lit up
@@ -66,12 +66,30 @@ async function initContext() {
 
 // ─── Oscillator ───────────────────────────────────────────────────────────────
 
+function createBuzzWave(): PeriodicWave {
+  const N = 40
+  const real = new Float32Array(N + 1)
+  const imag = new Float32Array(N + 1)
+  for (let k = 1; k <= N; k++) {
+    imag[k] = 1 / Math.pow(k, 0.3) // flat-ish rolloff → many visible harmonics
+  }
+  return audioCtx!.createPeriodicWave(real, imag)
+}
+
+function applyWaveform(osc: OscillatorNode) {
+  if (waveform.value === 'buzz') {
+    osc.setPeriodicWave(createBuzzWave())
+  } else {
+    osc.type = waveform.value as OscillatorType
+  }
+}
+
 function playOsc() {
   if (!audioCtx || !gainNode) return
   stopOsc()
 
   const osc = audioCtx.createOscillator()
-  osc.type = waveform.value
+  applyWaveform(osc)
   osc.frequency.setValueAtTime(freq.value, audioCtx.currentTime)
   osc.connect(gainNode)
   osc.start()
@@ -124,7 +142,7 @@ function onFilterTypeChange() {
 }
 
 function onWaveformChange() {
-  if (currentOsc) currentOsc.type = waveform.value
+  if (currentOsc) applyWaveform(currentOsc)
 }
 
 // ─── Visualizer ───────────────────────────────────────────────────────────────
@@ -350,7 +368,7 @@ osc.onended = () => {
       <div class="control-row mt-2">
         <label>
           Frequency: {{ freq }} Hz
-          <input type="range" min="55" max="1760" :disabled="!ctxStarted"
+          <input type="range" min="20" max="20000" :disabled="!ctxStarted"
                  v-model.number="freq" @input="onFreqChange">
         </label>
         <label>
@@ -360,6 +378,7 @@ osc.onended = () => {
             <option value="square">square</option>
             <option value="triangle">triangle</option>
             <option value="sawtooth">sawtooth</option>
+            <option value="buzz">buzz (rich harmonics)</option>
           </select>
         </label>
       </div>
@@ -396,8 +415,8 @@ osc.onended = () => {
     <!-- Step 3 — BiquadFilterNode -->
     <DemoStep :number="3" title="BiquadFilterNode — EQ / filtering">
       <p class="step-desc">
-        Filters shape the frequency spectrum. Try <em>lowpass</em> at 500 Hz with the square wave —
-        you'll hear the harmonics disappear, rounding the harsh tone.
+        Filters shape the frequency spectrum. Try <em>lowpass</em> with the <em>buzz</em> waveform —
+        it has 40 harmonics, so sweeping the cutoff visibly carves through the FFT.
       </p>
       <div class="control-row">
         <label>
@@ -412,7 +431,7 @@ osc.onended = () => {
         </label>
         <label>
           Cutoff: {{ Math.round(cutoff) }} Hz
-          <input type="range" min="80" max="8000" :disabled="!ctxStarted"
+          <input type="range" min="20" max="20000" :disabled="!ctxStarted"
                  v-model.number="cutoff" @input="onCutoffChange">
         </label>
         <label>
