@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import DemoStep from '../components/DemoStep.vue'
 import CodePanel from '../components/CodePanel.vue'
 
@@ -75,75 +75,93 @@ function demo2DrawRect() {
 
 function demo2Clear() {
   clearCanvas(c2.value)
-  stackDepth.value = 0
 }
 
 // ─── Step 3 — clip ────────────────────────────────────────────────────────────
 
-const clipSaved = ref(false)
+const saveDepth3 = ref(0)
 
-function demo3ShowPath() {
+function demo3Init() {
   const canvas = c3.value
   if (!canvas) return
-  clearCanvas(canvas)
-  clipSaved.value = false
   const ctx = canvas.getContext('2d')!
-  ctx.strokeStyle = '#7c6af7'
+  ctx.fillStyle = '#1e1b4b'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'
+  ctx.lineWidth = 1
+  for (let x = 0; x <= canvas.width; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke()
+  }
+  for (let y = 0; y <= canvas.height; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke()
+  }
+}
+
+function demo3Save() {
+  c3.value?.getContext('2d')?.save()
+  saveDepth3.value++
+}
+
+function demo3ShowPath() {
+  const ctx = c3.value?.getContext('2d')
+  if (!ctx) return
+  ctx.strokeStyle = '#fbbf24'
   ctx.lineWidth = 2
   ctx.setLineDash([6, 4])
   ctx.beginPath()
   ctx.arc(200, 150, 120, 0, Math.PI * 2)
   ctx.stroke()
   ctx.setLineDash([])
-  ctx.fillStyle = 'rgba(124,106,247,0.08)'
-  ctx.fill()
 }
 
 function demo3Clip() {
-  if (clipSaved.value) return
-  const canvas = c3.value
-  if (!canvas) return
-  clearCanvas(canvas)
-  clipSaved.value = true
-  const ctx = canvas.getContext('2d')!
-  ctx.save()
+  const ctx = c3.value?.getContext('2d')
+  if (!ctx) return
   ctx.beginPath()
   ctx.arc(200, 150, 120, 0, Math.PI * 2)
   ctx.clip()
 }
 
-function demo3DrawInside() {
-  if (!clipSaved.value) demo3Clip()
+function demo3FillRect() {
   const ctx = c3.value?.getContext('2d')
   if (!ctx) return
   ctx.fillStyle = '#7c6af7'
   ctx.fillRect(0, 0, 400, 300)
-  ctx.fillStyle = '#a78bfa'
-  ctx.fillRect(80, 60, 240, 180)
+}
+
+function demo3DrawCircles() {
+  const ctx = c3.value?.getContext('2d')
+  if (!ctx) return
   ctx.fillStyle = '#34d399'
   ctx.beginPath()
-  ctx.arc(200, 150, 70, 0, Math.PI * 2)
+  ctx.arc(150, 120, 60, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#fbbf24'
+  ctx.beginPath()
+  ctx.arc(250, 180, 50, 0, Math.PI * 2)
   ctx.fill()
 }
 
-function demo3Restore() {
-  if (!clipSaved.value) return
+function demo3DrawStripes() {
   const ctx = c3.value?.getContext('2d')
   if (!ctx) return
-  ctx.restore()
-  clipSaved.value = false
-  ctx.fillStyle = 'rgba(255,255,255,0.06)'
-  ctx.fillRect(0, 0, 400, 300)
-  ctx.strokeStyle = '#34d399'
-  ctx.lineWidth = 1.5
-  ctx.setLineDash([4, 4])
-  ctx.strokeRect(10, 10, 380, 280)
-  ctx.setLineDash([])
+  const stripeColors = ['#7c6af7', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#7dd3fc']
+  for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = stripeColors[i % stripeColors.length]!
+    ctx.fillRect(0, i * 25, 400, 25)
+  }
 }
 
-function demo3Clear() {
+function demo3Restore() {
+  if (saveDepth3.value === 0) return
+  c3.value?.getContext('2d')?.restore()
+  saveDepth3.value--
+}
+
+function demo3Reset() {
+  saveDepth3.value = 0
   clearCanvas(c3.value)
-  clipSaved.value = false
+  demo3Init()
 }
 
 // ─── Step 4 — combined animation ──────────────────────────────────────────────
@@ -192,6 +210,8 @@ function demo4Frame() {
   angle4 += 0.012
   rafId4 = requestAnimationFrame(demo4Frame)
 }
+
+onMounted(() => { demo3Init() })
 
 onUnmounted(() => {
   cancelAnimationFrame(rafId4)
@@ -333,12 +353,18 @@ const code4 = `<span class="kw">function</span> <span class="fn">draw</span>(img
         Wrap in <code class="text-mono">save()</code> / <code class="text-mono">restore()</code> to remove the clip.
       </p>
       <canvas ref="c3" width="400" height="300"></canvas>
+      <div class="stack-counter mt-1">Save depth: <span>{{ saveDepth3 }}</span></div>
       <div class="btn-row">
-        <button class="btn" @click="demo3ShowPath">1. Show clip path</button>
-        <button class="btn btn-primary" @click="demo3Clip">2. Apply clip()</button>
-        <button class="btn" @click="demo3DrawInside">3. Draw inside clip</button>
-        <button class="btn btn-danger" @click="demo3Restore">4. restore()</button>
-        <button class="btn" @click="demo3Clear">Clear</button>
+        <button class="btn btn-green"  @click="demo3Save">save()</button>
+        <button class="btn btn-danger" @click="demo3Restore" :disabled="saveDepth3 === 0">restore()</button>
+        <button class="btn" @click="demo3ShowPath">Show clip path</button>
+        <button class="btn btn-primary" @click="demo3Clip">clip()</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" @click="demo3FillRect">Fill rect</button>
+        <button class="btn" @click="demo3DrawCircles">Draw circles</button>
+        <button class="btn" @click="demo3DrawStripes">Draw stripes</button>
+        <button class="btn" @click="demo3Reset">Reset</button>
       </div>
 
       <template #code>
