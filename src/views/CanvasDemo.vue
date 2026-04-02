@@ -27,7 +27,8 @@ const SVG_SRC = `data:image/svg+xml,${encodeURIComponent(`
 const c1 = ref<HTMLCanvasElement | null>(null)
 const c2 = ref<HTMLCanvasElement | null>(null)
 const c3 = ref<HTMLCanvasElement | null>(null)
-const c4 = ref<HTMLCanvasElement | null>(null)
+const c4a = ref<HTMLCanvasElement | null>(null)
+const c4b = ref<HTMLCanvasElement | null>(null)
 
 function clearCanvas(canvas: HTMLCanvasElement | null) {
   if (!canvas) return
@@ -168,28 +169,37 @@ function demo3Reset() {
 
 const running4 = ref(false)
 let angle4 = 0
-let rafId4 = 0
+let rafId4a = 0
+let rafId4b = 0
 const img4 = new Image()
 img4.src = SVG_SRC
 
 function demo4Toggle() {
   if (running4.value) {
-    cancelAnimationFrame(rafId4)
+    cancelAnimationFrame(rafId4a)
+    cancelAnimationFrame(rafId4b)
     running4.value = false
+    // Reset the "without" canvas to clear accumulated transform/clip state
+    const cb = c4b.value
+    if (cb) cb.width = cb.width
   } else {
+    angle4 = 0
+    const cb = c4b.value
+    if (cb) cb.width = cb.width
     running4.value = true
-    demo4Frame()
+    demo4FrameWith()
+    demo4FrameWithout()
   }
 }
 
-function demo4Frame() {
+function demo4FrameWith() {
   if (!running4.value) return
-  const canvas = c4.value
+  const canvas = c4a.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')!
   const cx = canvas.width / 2
   const cy = canvas.height / 2
-  const r = 120
+  const r = 100
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.save()
@@ -208,13 +218,36 @@ function demo4Frame() {
   ctx.stroke()
 
   angle4 += 0.012
-  rafId4 = requestAnimationFrame(demo4Frame)
+  rafId4a = requestAnimationFrame(demo4FrameWith)
+}
+
+function demo4FrameWithout() {
+  if (!running4.value) return
+  const canvas = c4b.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')!
+  const cx = canvas.width / 2
+  const cy = canvas.height / 2
+  const r = 100
+
+  // No save() — transform and clip accumulate across frames
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.translate(cx, cy)
+  ctx.rotate(angle4)
+  ctx.drawImage(img4, -r, -r, r * 2, r * 2)
+  // No restore()
+
+  rafId4b = requestAnimationFrame(demo4FrameWithout)
 }
 
 onMounted(() => { demo3Init() })
 
 onUnmounted(() => {
-  cancelAnimationFrame(rafId4)
+  cancelAnimationFrame(rafId4a)
+  cancelAnimationFrame(rafId4b)
 })
 
 // ─── Code panel content ───────────────────────────────────────────────────────
@@ -271,7 +304,7 @@ ctx.<span class="fn">fillRect</span>(<span class="num">0</span>, <span class="nu
 const code4 = `<span class="kw">function</span> <span class="fn">draw</span>(img) {
   <span class="kw">const</span> cx = canvas.width / <span class="num">2</span>;
   <span class="kw">const</span> cy = canvas.height / <span class="num">2</span>;
-  <span class="kw">const</span> r  = <span class="num">120</span>;
+  <span class="kw">const</span> r  = <span class="num">100</span>;
 
   ctx.<span class="fn">clearRect</span>(<span class="num">0</span>, <span class="num">0</span>, canvas.width, canvas.height);
 
@@ -292,6 +325,30 @@ const code4 = `<span class="kw">function</span> <span class="fn">draw</span>(img
 
   <span class="cm">// restore() — clip and transform gone</span>
   ctx.<span class="fn">restore</span>();
+
+  angle += <span class="num">0.012</span>;
+  <span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));
+}`
+
+const code4Without = `<span class="kw">function</span> <span class="fn">draw</span>(img) {
+  <span class="kw">const</span> cx = canvas.width / <span class="num">2</span>;
+  <span class="kw">const</span> cy = canvas.height / <span class="num">2</span>;
+  <span class="kw">const</span> r  = <span class="num">100</span>;
+
+  ctx.<span class="fn">clearRect</span>(<span class="num">0</span>, <span class="num">0</span>, canvas.width, canvas.height);
+  <span class="cm">// ↑ runs in accumulated transform space — misses the canvas</span>
+
+  ctx.<span class="fn">beginPath</span>();
+  ctx.<span class="fn">arc</span>(cx, cy, r, <span class="num">0</span>, Math.PI * <span class="num">2</span>);
+  ctx.<span class="fn">clip</span>();
+  <span class="cm">// ↑ intersects with the previous frame's clip</span>
+
+  ctx.<span class="fn">translate</span>(cx, cy);
+  <span class="cm">// ↑ stacks on top of last frame's translate</span>
+
+  ctx.<span class="fn">rotate</span>(angle);
+  ctx.<span class="fn">drawImage</span>(img, -r, -r, r * <span class="num">2</span>, r * <span class="num">2</span>);
+  <span class="cm">// no restore() — state leaks into the next frame</span>
 
   angle += <span class="num">0.012</span>;
   <span class="fn">requestAnimationFrame</span>(() => <span class="fn">draw</span>(img));
@@ -375,20 +432,39 @@ const code4 = `<span class="kw">function</span> <span class="fn">draw</span>(img
     <!-- Step 4 — combined animated demo -->
     <DemoStep :number="4" title="Combined — animated drawImage + clip + save/restore">
       <p class="step-desc">
-        Putting it all together: an image drawn each frame, clipped to a circle,
-        rotating inside a <code class="text-mono">save()</code>/<code class="text-mono">restore()</code> block.
+        Both sides run the same animation. The left uses
+        <code class="text-mono">save()</code>/<code class="text-mono">restore()</code>;
+        the right does not — watch the state leak across frames.
       </p>
-      <canvas ref="c4" width="400" height="300"></canvas>
+      <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
+        <div>
+          <div class="stack-counter" style="margin-bottom:0.4rem">With save() / restore()</div>
+          <canvas ref="c4a" width="300" height="240"></canvas>
+          <p class="step-desc" style="margin-top:0.5rem">
+            Each frame, <code class="text-mono">save()</code> snapshots the context before the clip and transform are applied.
+            <code class="text-mono">restore()</code> rolls them back so the next frame starts from a clean state.
+          </p>
+        </div>
+        <CodePanel title="with save / restore" :code="code4" />
+      </div>
+      <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
+        <div>
+          <div class="stack-counter" style="margin-bottom:0.4rem">Without save() / restore()</div>
+          <canvas ref="c4b" width="300" height="240"></canvas>
+          <p class="step-desc" style="margin-top:0.5rem">
+            The clip and translate are never restored, so they accumulate.
+            The clip region shrinks to nothing within a few frames, and
+            <code class="text-mono">clearRect</code> fires in the wrong coordinate space.
+          </p>
+        </div>
+        <CodePanel title="without save / restore" :code="code4Without" />
+      </div>
       <div class="btn-row">
         <button
           :class="running4 ? 'btn btn-danger' : 'btn btn-primary'"
           @click="demo4Toggle"
-        >{{ running4 ? 'Stop animation' : 'Start animation' }}</button>
+        >{{ running4 ? 'Stop' : 'Start' }}</button>
       </div>
-
-      <template #code>
-        <CodePanel title="combined" :code="code4" />
-      </template>
     </DemoStep>
 
     <div class="connection-banner">
