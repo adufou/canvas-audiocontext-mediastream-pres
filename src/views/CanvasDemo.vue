@@ -221,12 +221,6 @@ function demo4FrameWith() {
   ctx.drawImage(img4, -r, -r, r * 2, r * 2)
   ctx.restore()
 
-  ctx.strokeStyle = 'rgba(124,106,247,0.5)'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.arc(cx, cy, r + 4, 0, Math.PI * 2)
-  ctx.stroke()
-
   angle4a += 0.012
   rafId4a = requestAnimationFrame(demo4FrameWith)
 }
