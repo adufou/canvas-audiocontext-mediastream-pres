@@ -26,6 +26,7 @@ const recordActive = ref(false)
 const downloadUrl  = ref<string | null>(null)
 
 const pillVideo = ref({ label: 'video — none', cls: '' })
+const pillMic   = ref({ label: 'mic — none', cls: '' })
 const pillAudio = ref({ label: 'audio — none', cls: '' })
 const pillCombo = ref({ label: 'combined stream — not ready', cls: '' })
 
@@ -134,7 +135,9 @@ async function requestMic() {
     micState.value  = `mic — live (${at?.label || 'microphone'})`
     micActive.value = true
     micError.value  = false
+    pillMic.value   = { label: `mic: ${at?.label || 'microphone'}`, cls: 'active-mic' }
     startMicMeter()
+    checkCombineReady()
   } catch (err: any) {
     micState.value  = `mic — error: ${err.message}`
     micActive.value = false
@@ -151,6 +154,21 @@ function startMicMeter() {
     micMeterRafId = requestAnimationFrame(tick)
   }
   tick()
+}
+
+function stopMic() {
+  cancelAnimationFrame(micMeterRafId)
+  micStream?.getTracks().forEach(t => t.stop())
+  micStream = null
+  micAudioCtx?.close()
+  micAudioCtx = null
+  micAnalyser = null
+  if (micMeterBar.value) micMeterBar.value.style.width = '0%'
+  pillMic.value   = { label: 'mic — none', cls: '' }
+  micState.value  = 'mic — stopped'
+  micActive.value = false
+  micError.value  = false
+  checkCombineReady()
 }
 
 // ─── Step 3 — AudioContext → MediaStreamDestination ───────────────────────────
@@ -198,19 +216,30 @@ function onSynthFreqChange() {
 // ─── Step 4 — Combine tracks ──────────────────────────────────────────────────
 
 function checkCombineReady() {
-  canCombine.value = !!(canvasStream?.active && synthStreamRef)
+  canCombine.value = !!(canvasStream?.active && (synthStreamRef || micStream))
 }
 
 function combineStreams() {
-  if (!canvasStream || !synthStreamRef) return
+  if (!canvasStream) return
   const videoTrack = canvasStream.getVideoTracks()[0]
-  const audioTrack = synthStreamRef.getAudioTracks()[0]
-  if (!videoTrack || !audioTrack) { alert('A track is missing.'); return }
+  if (!videoTrack) { alert('Video track is missing.'); return }
 
-  combinedStream = new MediaStream([videoTrack, audioTrack])
+  const audioTracks: MediaStreamTrack[] = []
+  if (synthStreamRef) {
+    const t = synthStreamRef.getAudioTracks()[0]
+    if (t) audioTracks.push(t)
+  }
+  if (micStream) {
+    const t = micStream.getAudioTracks()[0]
+    if (t) audioTracks.push(t)
+  }
+  if (!audioTracks.length) { alert('No audio track available.'); return }
+
+  combinedStream = new MediaStream([videoTrack, ...audioTracks])
   if (combinedVideoEl.value) combinedVideoEl.value.srcObject = combinedStream
 
-  pillCombo.value = { label: 'combined: 1 video + 1 audio track', cls: 'active-combo' }
+  const audioLabel = audioTracks.length === 2 ? '2 audio tracks' : '1 audio track'
+  pillCombo.value = { label: `combined: 1 video + ${audioLabel}`, cls: 'active-combo' }
   combineState.value  = 'combined stream — playing'
   combineActive.value = true
 }
@@ -248,8 +277,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopCanvasStream()
   stopSynth()
-  cancelAnimationFrame(micMeterRafId)
-  micAudioCtx?.close()
+  stopMic()
 })
 
 // Watch combinedStream to enable record button
@@ -346,6 +374,7 @@ recorder.<span class="fn">start</span>();
     <div class="stream-assembly">
       <span style="color:var(--text-dim)">Tracks:</span>
       <span class="track-pill" :class="pillVideo.cls">{{ pillVideo.label }}</span>
+      <span class="track-pill" :class="pillMic.cls">{{ pillMic.label }}</span>
       <span class="track-pill" :class="pillAudio.cls">{{ pillAudio.label }}</span>
       <span style="color:var(--text-dim); padding: 0 0.25rem">→</span>
       <span class="track-pill" :class="pillCombo.cls">{{ pillCombo.label }}</span>
@@ -395,7 +424,8 @@ recorder.<span class="fn">start</span>();
         <div ref="micMeterBar" class="meter-bar"></div>
       </div>
       <div class="btn-row mt-1">
-        <button class="btn btn-primary" :disabled="micActive" @click="requestMic">Request mic access</button>
+        <button class="btn btn-primary" :disabled="micActive"  @click="requestMic">Request mic access</button>
+        <button class="btn btn-danger"  :disabled="!micActive" @click="stopMic">Stop mic</button>
       </div>
       <div class="state-badge mt-1" :class="{ active: micActive, error: micError }">{{ micState }}</div>
 
@@ -488,6 +518,9 @@ recorder.<span class="fn">start</span>();
   gap: 0.5rem;
   font-size: 0.82rem;
   font-family: var(--font-mono);
+  position: sticky;
+  top: 48px;
+  z-index: 10;
 }
 .track-pill {
   padding: 0.25rem 0.7rem;
@@ -499,6 +532,7 @@ recorder.<span class="fn">start</span>();
   transition: all 0.2s;
 }
 .track-pill.active-video { border-color: var(--accent); color: var(--accent2); background: #1e1a3a; }
+.track-pill.active-mic   { border-color: #38bdf8;       color: #38bdf8;        background: #0c2340; }
 .track-pill.active-audio { border-color: var(--green);  color: var(--green);   background: #064e3b; }
 .track-pill.active-combo { border-color: var(--yellow); color: var(--yellow);  background: #451a03; }
 .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
