@@ -1,42 +1,75 @@
-# demo
+# Web API Deep Dive
 
-This template should help get you started developing with Vue 3 in Vite.
+Interactive presentation demos for **Canvas**, **AudioContext**, and **MediaStream** — and how they connect. Built with Vue 3 + Vite.
 
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Running
 
 ```sh
 pnpm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 pnpm dev
 ```
 
-### Type-Check, Compile and Minify for Production
+Open `http://localhost:5173` in a browser. For the MediaStream demo, use a Chromium-based browser (Chrome, Edge, Brave) and grant camera/microphone access when prompted.
+
+### Other commands
 
 ```sh
-pnpm build
+pnpm build        # type-check + production build
+pnpm preview      # serve the production build locally
+```
+
+> Requires Node 20.19+ or 22.12+.
+
+## What's in the repo
+
+```
+src/
+  views/
+    HomeView.vue          # landing page with API overview and connection diagram
+    CanvasDemo.vue        # Canvas 2D API demos
+    AudioContextDemo.vue  # Web Audio API demos
+    MediaStreamDemo.vue   # MediaStream API demos
+  components/
+    AppNav.vue            # top navigation bar
+    DemoStep.vue          # collapsible step layout (demo + code panel side by side)
+    CodePanel.vue         # syntax-highlighted code viewer
+  router/index.ts         # routes: / /canvas /audiocontext /mediastream
+  main.ts
+```
+
+## Demo pages
+
+### Canvas (`/canvas`)
+
+Step-by-step walkthrough of the 2D rendering context:
+
+1. **drawImage** — draw an image, canvas, or video element onto the canvas
+2. **save / restore** — the context state stack (transforms, styles, clip region)
+3. **clip** — mask drawing to a path; wrap in `save`/`restore` to remove the mask
+4. **Combined animation** — rotating image clipped to a circle, with and without `save`/`restore` to show what happens when transforms accumulate across frames
+
+### AudioContext (`/audiocontext`)
+
+Building a signal chain with the Web Audio API:
+
+1. **OscillatorNode** — generate sine/square/sawtooth/triangle tones
+2. **GainNode** — volume control
+3. **BiquadFilterNode** — lowpass / highpass / bandpass filters
+4. **AnalyserNode → Canvas** — real-time FFT visualizer drawn each frame
+
+### MediaStream (`/mediastream`)
+
+Connecting streams from multiple sources:
+
+1. **canvas.captureStream()** — turn a canvas animation into a live video track
+2. **getUserMedia** — access camera and microphone
+3. **createMediaStreamDestination** — route AudioContext output into a MediaStream
+4. **Combined** — merge canvas video + audio tracks into one stream and preview it
+
+## How the APIs connect
+
+```
+Canvas  ──captureStream()──────────────────────────►  MediaStream
+AudioContext  ──createMediaStreamDestination()──────►  MediaStream
+AudioContext  ──AnalyserNode data──────────────────►  Canvas  (FFT visualizer)
 ```
